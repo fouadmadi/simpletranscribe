@@ -13,14 +13,12 @@
 
 /* Begin PBXFileReference section */
 		CEF939A92F4B943000F40AAF /* simpletranscribe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = simpletranscribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		DADA754824796BFBD2C59910 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; includeInIndex = 1; name = "ggml-tiny.en.bin"; path = "simpletranscribe/ggml-tiny.en.bin"; sourceTree = "<group>"; };
+		DADA754824796BFBD2C59910 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = archive.macbinary; name = "ggml-tiny.en.bin"; path = "simpletranscribe/ggml-tiny.en.bin"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CEF939AB2F4B943000F40AAF /* simpletranscribe */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = simpletranscribe;
 			sourceTree = "<group>";
 		};

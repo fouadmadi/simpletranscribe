@@ -8,6 +8,16 @@ struct ContentView: View {
     
     // For copy to clipboard alert
     @State private var showCopiedAlert = false
+    @State private var showModelManager = false
+    @State private var modelLoaded = false
+    
+    var currentModel: ModelInfo? {
+        appModel.modelService.availableModels.first { $0.id == appModel.selectedModelID }
+    }
+    
+    var canRecord: Bool {
+        modelLoaded && currentModel?.isAvailable == true
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +33,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(appModel.isRecording ? .red : .accentColor)
-                .disabled(appModel.isProcessing)
+                .disabled(appModel.isProcessing || !canRecord)
                 
                 if appModel.isProcessing || transcriptionManager.isTranscribing {
                     ProgressView()
@@ -35,6 +45,13 @@ struct ContentView: View {
                 }
                 
                 Spacer()
+                
+                Button(action: { showModelManager = true }) {
+                    Image(systemName: "gearshape")
+                    Text("Models")
+                }
+                .buttonStyle(.bordered)
+                .help("Manage models")
             }
             .padding()
             .background(Color(NSColor.windowBackgroundColor))
@@ -49,6 +66,13 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: 250)
+                
+                Picker("Model", selection: $appModel.selectedModelID) {
+                    ForEach(appModel.modelService.availableModels.filter { $0.isAvailable }) { model in
+                        Text(model.name).tag(model.id)
+                    }
+                }
+                .frame(maxWidth: 200)
                 
                 Picker("Language", selection: $appModel.selectedLanguage) {
                     Text("Auto Detect").tag("auto")
@@ -90,6 +114,40 @@ struct ContentView: View {
                 }
             }
             
+            if !modelLoaded {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.orange)
+                    Text("No model loaded. Download a model to get started.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Download") {
+                        showModelManager = true
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.caption)
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            } else if !canRecord {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundColor(.red)
+                    Text("Selected model is not downloaded.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Manage") {
+                        showModelManager = true
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.caption)
+                }
+                .padding()
+                .background(Color.red.opacity(0.1))
+            }
+            
             if let error = appModel.errorMessage {
                 Text(error)
                     .foregroundColor(.red)
@@ -98,10 +156,30 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 600, minHeight: 500)
         .onAppear {
             setupAudio()
-            loadModel()
+            // Only load model if one is selected
+            if !appModel.selectedModelID.isEmpty {
+                loadModel()
+            } else {
+                modelLoaded = false
+            }
+        }
+        .onChange(of: appModel.selectedModelID) { oldValue, newValue in
+            if !newValue.isEmpty {
+                loadModel()
+            } else {
+                modelLoaded = false
+            }
+        }
+        .sheet(isPresented: $showModelManager) {
+            ModelDownloadView(appModel: appModel)
+                .frame(minWidth: 700, minHeight: 600)
+                .onDisappear {
+                    // Refresh model selection after download sheet closes
+                    appModel.selectDefaultModel()
+                }
         }
     }
     
@@ -114,20 +192,32 @@ struct ContentView: View {
     }
     
     private func loadModel() {
-        // Look for the model file in the app bundle
+        // Don't load if no model is selected
+        guard !appModel.selectedModelID.isEmpty else {
+            modelLoaded = false
+            return
+        }
+        
+        // Load from the downloaded model path
         Task {
-            if let modelURL = Bundle.main.url(forResource: "ggml-tiny.en", withExtension: "bin") {
+            if let modelPath = appModel.modelService.getModelPath(appModel.selectedModelID) {
                 do {
-                    try transcriptionManager.loadModel(modelPath: modelURL)
+                    try transcriptionManager.loadModel(modelPath: modelPath)
+                    DispatchQueue.main.async {
+                        modelLoaded = true
+                        appModel.errorMessage = nil
+                    }
                 } catch {
-                     DispatchQueue.main.async {
-                         appModel.errorMessage = "Failed to load model: \(error.localizedDescription)"
-                     }
+                    DispatchQueue.main.async {
+                        appModel.errorMessage = "Failed to load model: \(error.localizedDescription)"
+                        modelLoaded = false
+                    }
                 }
             } else {
-                 DispatchQueue.main.async {
-                     appModel.errorMessage = "Model file ggml-tiny.en.bin not found in bundle."
-                 }
+                DispatchQueue.main.async {
+                    appModel.errorMessage = "Model file not found. Download it from the Models tab."
+                    modelLoaded = false
+                }
             }
         }
     }
@@ -193,3 +283,4 @@ struct ContentView: View {
         }
     }
 }
+

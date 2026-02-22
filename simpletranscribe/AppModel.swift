@@ -7,18 +7,32 @@ class AppModel {
     var isRecording: Bool = false
     var transcribedText: String = ""
     var selectedLanguage: String = "en"  // Default to English
-    var selectedModel: String = "ggml-tiny.en.bin"  // Default small model
-    var availableModels: [String] = ["ggml-tiny.en.bin", "ggml-base.en.bin", "ggml-small.en.bin"]
+    var selectedModelID: String = ""  // Start empty, will be set if models are downloaded
     var selectedInputDevice: AVCaptureDevice?
     var availableInputDevices: [AVCaptureDevice] = []
+    
+    // Model management
+    let modelService = ModelService()
     
     // Status properties
     var isProcessing: Bool = false
     var errorMessage: String? = nil
     
-    // Initialization to find available microphones
+    // Initialization to find available microphones and load models
     init() {
         refreshAudioDevices()
+        modelService.loadAvailableModels()
+        selectDefaultModel()
+    }
+    
+    /// Select the first downloaded model, or empty string if none are available
+    func selectDefaultModel() {
+        let downloadedModels = modelService.availableModels.filter { $0.isAvailable }
+        if let firstDownloaded = downloadedModels.first {
+            self.selectedModelID = firstDownloaded.id
+        } else {
+            self.selectedModelID = ""
+        }
     }
     
     func refreshAudioDevices() {
