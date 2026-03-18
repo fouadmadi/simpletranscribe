@@ -1,10 +1,9 @@
 # Ignore local files
 *.rb
 *.bin
+*.md
 
-# Ignore design/spec markdown docs but keep README
-dev_design*.md
-simple_mac_devspec.md
+# keep README
 !README.md
 
 # Common git ignore patterns
