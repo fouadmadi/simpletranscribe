@@ -17,6 +17,8 @@ class AppModel {
     // Status properties
     var isProcessing: Bool = false
     var errorMessage: String? = nil
+    // Feedback property
+    var showTranscriptionStarted: Bool = false
     
     // Initialization to find available microphones and load models
     init() {

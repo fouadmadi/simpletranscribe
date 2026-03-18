@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct simpletranscribeApp: App {
+    @State private var hotKeyManager = HotKeyManager()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(hotKeyManager)
         }
     }
 }

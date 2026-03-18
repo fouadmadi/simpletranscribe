@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var appModel = AppModel()
     let audioManager = AudioManager()
     @StateObject private var transcriptionManager = TranscriptionManager()
+    @Environment(HotKeyManager.self) private var hotKeyManager
     
     // For copy to clipboard alert
     @State private var showCopiedAlert = false
@@ -42,6 +43,12 @@ struct ContentView: View {
                     Text("Processing...")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+                if appModel.showTranscriptionStarted {
+                    Label("Transcription started", systemImage: "waveform")
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                        .padding(.leading, 8)
                 }
                 
                 Spacer()
@@ -181,6 +188,9 @@ struct ContentView: View {
                     appModel.selectDefaultModel()
                 }
         }
+        .onChange(of: hotKeyManager.isHotKeyPressed) { _, pressed in
+            handleHotKey(pressed: pressed)
+        }
     }
     
     private func setupAudio() {
@@ -222,52 +232,91 @@ struct ContentView: View {
         }
     }
     
-    private func toggleRecording() {
-        if appModel.isRecording {
-            // Stop
-            audioManager.stopRecording()
-            appModel.isRecording = false
-            appModel.isProcessing = true
-            appModel.errorMessage = nil
-            
-            // Process the accumulated audio
-            Task {
-                do {
-                    let text = try await transcriptionManager.processAudio { partial in
-                        // Optional real-time updates could go here
-                    }
-                    
-                    // Add a space and the new text if appending, or replace
-                    if appModel.transcribedText.isEmpty {
-                        appModel.transcribedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    } else {
-                        appModel.transcribedText += " " + text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }
-                    
-                    appModel.isProcessing = false
-                    
-                } catch {
-                    appModel.errorMessage = "Transcription failed: \(error.localizedDescription)"
-                    appModel.isProcessing = false
-                }
+    private func handleHotKey(pressed: Bool) {
+        if pressed {
+            startRecording()
+        } else if appModel.isRecording {
+            stopRecordingAndTranscribe(autoPaste: true)
+        }
+    }
+    
+    private func startRecording() {
+        guard canRecord, !appModel.isRecording, !appModel.isProcessing else { return }
+        
+        appModel.errorMessage = nil
+        audioManager.requestMicrophoneAccess { granted in
+            guard granted else {
+                appModel.errorMessage = "Microphone access denied."
+                return
             }
-        } else {
-            // Start
-            appModel.errorMessage = nil
-            audioManager.requestMicrophoneAccess { granted in
-                guard granted else {
-                    appModel.errorMessage = "Microphone access denied."
-                    return
+            
+            do {
+                transcriptionManager.startTranscription(language: appModel.selectedLanguage)
+                appModel.isRecording = true
+                appModel.showTranscriptionStarted = true
+                try audioManager.startRecording(device: appModel.selectedInputDevice)
+            } catch {
+                appModel.errorMessage = "Failed to start recording: \(error.localizedDescription)"
+                appModel.isRecording = false
+                appModel.showTranscriptionStarted = false
+            }
+        }
+    }
+    
+    private func stopRecordingAndTranscribe(autoPaste: Bool = false) {
+        audioManager.stopRecording()
+        appModel.isRecording = false
+        appModel.isProcessing = true
+        appModel.errorMessage = nil
+        appModel.showTranscriptionStarted = false
+        
+        Task {
+            do {
+                let text = try await transcriptionManager.processAudio { partial in }
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                if appModel.transcribedText.isEmpty {
+                    appModel.transcribedText = trimmed
+                } else {
+                    appModel.transcribedText += " " + trimmed
                 }
                 
-                do {
-                    transcriptionManager.startTranscription(language: appModel.selectedLanguage)
-                    appModel.isRecording = true
-                    try audioManager.startRecording(device: appModel.selectedInputDevice)
-                } catch {
-                    appModel.errorMessage = "Failed to start recording: \(error.localizedDescription)"
-                    appModel.isRecording = false
+                appModel.isProcessing = false
+                
+                if autoPaste && !trimmed.isEmpty {
+                    copyAndPaste(trimmed)
                 }
+            } catch {
+                appModel.errorMessage = "Transcription failed: \(error.localizedDescription)"
+                appModel.isProcessing = false
+            }
+        }
+    }
+    
+    private func toggleRecording() {
+        if appModel.isRecording {
+            stopRecordingAndTranscribe(autoPaste: false)
+        } else {
+            startRecording()
+        }
+    }
+    
+    private func copyAndPaste(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        
+        // Simulate ⌘V paste in the frontmost app
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            let script = NSAppleScript(source: """
+                tell application "System Events"
+                    keystroke "v" using command down
+                end tell
+            """)
+            var error: NSDictionary?
+            script?.executeAndReturnError(&error)
+            if let error {
+                print("Paste failed: \(error)")
             }
         }
     }

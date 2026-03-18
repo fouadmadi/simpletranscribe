@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		270D30653E11211AA7FA70F2 /* ggml-tiny.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = DADA754824796BFBD2C59910 /* ggml-tiny.en.bin */; };
+		AF3892E2211B3087BFBA8C1D /* ggml-tiny.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 6EF22B72667569BEA9892F9E /* ggml-tiny.en.bin */; };
 		CE10C922F4D6D637453CFC24 /* SwiftWhisper in Frameworks */ = {isa = PBXBuildFile; productRef = BD8C5B6D5C0CB52BB578BECB /* SwiftWhisper */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6EF22B72667569BEA9892F9E /* ggml-tiny.en.bin */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = archive.macbinary; name = "ggml-tiny.en.bin"; path = "simpletranscribe/ggml-tiny.en.bin"; sourceTree = "<group>"; };
 		CEF939A92F4B943000F40AAF /* simpletranscribe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = simpletranscribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DADA754824796BFBD2C59910 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = archive.macbinary; name = "ggml-tiny.en.bin"; path = "simpletranscribe/ggml-tiny.en.bin"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -42,6 +44,7 @@
 				CEF939AB2F4B943000F40AAF /* simpletranscribe */,
 				CEF939AA2F4B943000F40AAF /* Products */,
 				DADA754824796BFBD2C59910 /* ggml-tiny.en.bin */,
+				6EF22B72667569BEA9892F9E /* ggml-tiny.en.bin */,
 			);
 			sourceTree = "<group>";
 		};
@@ -122,6 +125,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				270D30653E11211AA7FA70F2 /* ggml-tiny.en.bin in Resources */,
+				AF3892E2211B3087BFBA8C1D /* ggml-tiny.en.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
