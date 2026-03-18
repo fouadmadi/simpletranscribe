@@ -147,7 +147,7 @@ struct ContentView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle")
                         .foregroundColor(.accentColor)
-                    Text("Select a model above, then load it to start transcribing.")
+                    Text("Model not loaded. Click to load manually.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -193,11 +193,21 @@ struct ContentView: View {
             appModel.setup()
             hotKeyManager.setup()
             setupAudio()
+            
+            // Auto-load the selected model if one is already downloaded
+            if !appModel.selectedModelID.isEmpty,
+               currentModel?.isAvailable == true {
+                await loadModelAsync()
+            }
         }
         .onChange(of: appModel.selectedModelID) { oldValue, newValue in
-            // Reset loaded state when selection changes; user must click "Load Model"
             modelLoaded = false
             appModel.errorMessage = nil
+            // Auto-load the newly selected model if it's downloaded
+            if !newValue.isEmpty,
+               appModel.modelService.availableModels.first(where: { $0.id == newValue })?.isAvailable == true {
+                loadModel()
+            }
         }
         .sheet(isPresented: $showModelManager) {
             ModelDownloadView(appModel: appModel)
