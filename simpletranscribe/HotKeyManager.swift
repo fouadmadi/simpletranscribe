@@ -12,6 +12,13 @@ class HotKeyManager {
     private let requiredFlags: NSEvent.ModifierFlags = [.function, .control]
 
     init() {
+        // Monitoring is deferred to setup() so NSEvent monitors aren't
+        // registered before the app's event loop is fully running.
+    }
+
+    /// Call after app activation to register event monitors
+    func setup() {
+        guard globalMonitor == nil else { return }
         startMonitoring()
     }
 

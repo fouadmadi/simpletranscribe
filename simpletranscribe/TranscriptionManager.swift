@@ -51,6 +51,13 @@ class TranscriptionManager: ObservableObject {
     
     /// Process the currently accumulated audio and return the full text.
     func processAudio(onPartialOutput: @escaping (String) -> Void) async throws -> String {
+        // Ensure isTranscribing is always reset, regardless of early returns or errors
+        defer {
+            DispatchQueue.main.async {
+                self.isTranscribing = false
+            }
+        }
+        
         guard let whisper = whisper else {
             throw NSError(domain: "WhisperError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Model not loaded"])
         }
@@ -62,10 +69,6 @@ class TranscriptionManager: ObservableObject {
         let segments = try await whisper.transcribe(audioFrames: accumulatedAudio)
         
         let text = segments.map { $0.text }.joined(separator: " ")
-        
-        DispatchQueue.main.async {
-            self.isTranscribing = false
-        }
         
         return text
     }

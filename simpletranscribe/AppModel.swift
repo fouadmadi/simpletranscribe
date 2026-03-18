@@ -20,11 +20,32 @@ class AppModel {
     // Feedback property
     var showTranscriptionStarted: Bool = false
     
-    // Initialization to find available microphones and load models
     init() {
-        refreshAudioDevices()
-        modelService.loadAvailableModels()
+        // ModelService.init() already calls loadAvailableModels().
+        // Audio device discovery is deferred to setup() to avoid
+        // blocking app activation with Core Audio initialization.
         selectDefaultModel()
+    }
+    
+    /// Call after app has fully activated to initialize audio hardware.
+    /// Runs Core Audio discovery on a background thread to avoid blocking the UI.
+    func setup() {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let discoverySession = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.builtInMicrophone, .externalUnknown],
+                mediaType: .audio,
+                position: .unspecified
+            )
+            let devices = discoverySession.devices
+            let defaultDevice = AVCaptureDevice.default(for: .audio) ?? devices.first
+            
+            DispatchQueue.main.async {
+                self.availableInputDevices = devices
+                if self.selectedInputDevice == nil {
+                    self.selectedInputDevice = defaultDevice
+                }
+            }
+        }
     }
     
     /// Select the first downloaded model, or empty string if none are available

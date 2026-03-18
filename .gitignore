@@ -1,0 +1,22 @@
+# Ignore local files
+*.rb
+*.md
+*.bin
+
+# Common git ignore patterns
+.DS_Store
+.env
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+*.log
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.gradle/
+.idea/

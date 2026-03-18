@@ -3,7 +3,7 @@ import AVFoundation
 
 struct ContentView: View {
     @State private var appModel = AppModel()
-    let audioManager = AudioManager()
+    @State private var audioManager = AudioManager()
     @StateObject private var transcriptionManager = TranscriptionManager()
     @Environment(HotKeyManager.self) private var hotKeyManager
     
@@ -15,6 +15,10 @@ struct ContentView: View {
     
     var currentModel: ModelInfo? {
         appModel.modelService.availableModels.first { $0.id == appModel.selectedModelID }
+    }
+    
+    var hasDownloadedModels: Bool {
+        appModel.modelService.availableModels.contains { $0.isAvailable }
     }
     
     var canRecord: Bool {
@@ -69,6 +73,9 @@ struct ContentView: View {
             // Sidebar / Settings Area
             HStack(spacing: 20) {
                 Picker("Microphone", selection: $appModel.selectedInputDevice) {
+                    if appModel.availableInputDevices.isEmpty {
+                        Text("Detecting…").tag(nil as AVCaptureDevice?)
+                    }
                     ForEach(appModel.availableInputDevices, id: \.uniqueID) { device in
                         Text(device.localizedName).tag(device as AVCaptureDevice?)
                     }
@@ -136,18 +143,35 @@ struct ContentView: View {
                 }
                 .padding()
                 .background(Color.blue.opacity(0.1))
+            } else if !modelLoaded && hasDownloadedModels {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle")
+                        .foregroundColor(.accentColor)
+                    Text("Select a model above, then load it to start transcribing.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Load Model") {
+                        loadModel()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.caption)
+                    .disabled(appModel.selectedModelID.isEmpty)
+                }
+                .padding()
+                .background(Color.accentColor.opacity(0.08))
             } else if !modelLoaded {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundColor(.orange)
-                    Text("No model loaded. Download a model to get started.")
+                    Text("No models downloaded. Download a model to get started.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
                     Button("Download") {
                         showModelManager = true
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .font(.caption)
                 }
                 .padding()
@@ -163,30 +187,23 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 600, minHeight: 500)
-        .onAppear {
+        .task {
+            // Deferred init: setup() dispatches Core Audio to a background thread,
+            // so it won't block the main thread or interfere with app activation.
+            appModel.setup()
+            hotKeyManager.setup()
             setupAudio()
-            // Only load model if one is selected
-            if !appModel.selectedModelID.isEmpty {
-                loadModel()
-            } else {
-                modelLoaded = false
-            }
         }
         .onChange(of: appModel.selectedModelID) { oldValue, newValue in
-            if !newValue.isEmpty {
-                loadModel()
-            } else {
-                modelLoaded = false
-            }
+            // Reset loaded state when selection changes; user must click "Load Model"
+            modelLoaded = false
+            appModel.errorMessage = nil
         }
         .sheet(isPresented: $showModelManager) {
             ModelDownloadView(appModel: appModel)
                 .frame(minWidth: 700, minHeight: 600)
                 .onDisappear {
                     appModel.selectDefaultModel()
-                    if !appModel.selectedModelID.isEmpty {
-                        loadModel()
-                    }
                 }
         }
         .onChange(of: hotKeyManager.isHotKeyPressed) { _, pressed in
@@ -202,7 +219,7 @@ struct ContentView: View {
         }
     }
     
-    private func loadModel() {
+    private func loadModelAsync() async {
         guard !appModel.selectedModelID.isEmpty else {
             modelLoaded = false
             return
@@ -218,21 +235,21 @@ struct ContentView: View {
         modelLoaded = false
         appModel.errorMessage = nil
         
+        do {
+            try await transcriptionManager.loadModel(modelPath: modelPath)
+            modelLoaded = true
+            isLoadingModel = false
+            appModel.errorMessage = nil
+        } catch {
+            appModel.errorMessage = "Failed to load model: \(error.localizedDescription)"
+            modelLoaded = false
+            isLoadingModel = false
+        }
+    }
+    
+    private func loadModel() {
         Task {
-            do {
-                try await transcriptionManager.loadModel(modelPath: modelPath)
-                await MainActor.run {
-                    modelLoaded = true
-                    isLoadingModel = false
-                    appModel.errorMessage = nil
-                }
-            } catch {
-                await MainActor.run {
-                    appModel.errorMessage = "Failed to load model: \(error.localizedDescription)"
-                    modelLoaded = false
-                    isLoadingModel = false
-                }
-            }
+            await loadModelAsync()
         }
     }
     
@@ -259,10 +276,12 @@ struct ContentView: View {
                 appModel.isRecording = true
                 appModel.showTranscriptionStarted = true
                 try audioManager.startRecording(device: appModel.selectedInputDevice)
+                SoundManager.playRecordingStarted()
             } catch {
                 appModel.errorMessage = "Failed to start recording: \(error.localizedDescription)"
                 appModel.isRecording = false
                 appModel.showTranscriptionStarted = false
+                SoundManager.playError()
             }
         }
     }
@@ -279,13 +298,16 @@ struct ContentView: View {
                 let text = try await transcriptionManager.processAudio { partial in }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 
-                if appModel.transcribedText.isEmpty {
-                    appModel.transcribedText = trimmed
-                } else {
-                    appModel.transcribedText += " " + trimmed
+                if !trimmed.isEmpty {
+                    if appModel.transcribedText.isEmpty {
+                        appModel.transcribedText = trimmed
+                    } else {
+                        appModel.transcribedText += " " + trimmed
+                    }
                 }
                 
                 appModel.isProcessing = false
+                SoundManager.playTranscriptionComplete()
                 
                 if autoPaste && !trimmed.isEmpty {
                     copyAndPaste(trimmed)
@@ -293,6 +315,7 @@ struct ContentView: View {
             } catch {
                 appModel.errorMessage = "Transcription failed: \(error.localizedDescription)"
                 appModel.isProcessing = false
+                SoundManager.playError()
             }
         }
     }
@@ -310,18 +333,46 @@ struct ContentView: View {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         
-        // Simulate ⌘V paste in the frontmost app
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            let script = NSAppleScript(source: """
-                tell application "System Events"
-                    keystroke "v" using command down
-                end tell
-            """)
-            var error: NSDictionary?
-            script?.executeAndReturnError(&error)
-            if let error {
-                print("Paste failed: \(error)")
+        // Small delay to ensure pasteboard is populated, then paste
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            // Try CGEvent first (more reliable, requires Accessibility permission)
+            if Self.pasteWithCGEvent() {
+                return
             }
+            // Fall back to AppleScript
+            Self.pasteWithAppleScript()
+        }
+    }
+    
+    /// Simulate ⌘V using CGEvent (Quartz Event Services).
+    /// Returns true if the events were posted successfully.
+    private static func pasteWithCGEvent() -> Bool {
+        let source = CGEventSource(stateID: .hidSystemState)
+        
+        // 'v' key = keycode 9
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
+            return false
+        }
+        
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
+    }
+    
+    /// Simulate ⌘V using AppleScript → System Events (sandboxed fallback).
+    private static func pasteWithAppleScript() {
+        let script = NSAppleScript(source: """
+            tell application "System Events"
+                keystroke "v" using command down
+            end tell
+        """)
+        var error: NSDictionary?
+        script?.executeAndReturnError(&error)
+        if let error {
+            print("AppleScript paste failed: \(error)")
         }
     }
     

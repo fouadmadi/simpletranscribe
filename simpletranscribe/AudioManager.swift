@@ -2,7 +2,7 @@ import AVFoundation
 import CoreAudio
 
 class AudioManager: NSObject {
-    private var engine = AVAudioEngine()
+    private lazy var engine = AVAudioEngine()
     private var converter: AVAudioConverter?
     
     // Whisper requires 16kHz mono, 32-bit float or 16-bit int depending on the exact implementation.
