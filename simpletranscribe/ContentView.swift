@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showCopiedAlert = false
     @State private var showModelManager = false
     @State private var modelLoaded = false
+    @State private var isLoadingModel = false
     
     var currentModel: ModelInfo? {
         appModel.modelService.availableModels.first { $0.id == appModel.selectedModelID }
@@ -34,7 +35,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(appModel.isRecording ? .red : .accentColor)
-                .disabled(appModel.isProcessing || !canRecord)
+                .disabled(appModel.isProcessing || !canRecord || isLoadingModel)
                 
                 if appModel.isProcessing || transcriptionManager.isTranscribing {
                     ProgressView()
@@ -75,6 +76,9 @@ struct ContentView: View {
                 .frame(maxWidth: 250)
                 
                 Picker("Model", selection: $appModel.selectedModelID) {
+                    if appModel.modelService.availableModels.filter({ $0.isAvailable }).isEmpty {
+                        Text("No models downloaded").tag("")
+                    }
                     ForEach(appModel.modelService.availableModels.filter { $0.isAvailable }) { model in
                         Text(model.name).tag(model.id)
                     }
@@ -121,7 +125,18 @@ struct ContentView: View {
                 }
             }
             
-            if !modelLoaded {
+            if isLoadingModel {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text("Loading model...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+            } else if !modelLoaded {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundColor(.orange)
@@ -137,22 +152,6 @@ struct ContentView: View {
                 }
                 .padding()
                 .background(Color.orange.opacity(0.1))
-            } else if !canRecord {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.circle")
-                        .foregroundColor(.red)
-                    Text("Selected model is not downloaded.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button("Manage") {
-                        showModelManager = true
-                    }
-                    .buttonStyle(.bordered)
-                    .font(.caption)
-                }
-                .padding()
-                .background(Color.red.opacity(0.1))
             }
             
             if let error = appModel.errorMessage {
@@ -184,8 +183,10 @@ struct ContentView: View {
             ModelDownloadView(appModel: appModel)
                 .frame(minWidth: 700, minHeight: 600)
                 .onDisappear {
-                    // Refresh model selection after download sheet closes
                     appModel.selectDefaultModel()
+                    if !appModel.selectedModelID.isEmpty {
+                        loadModel()
+                    }
                 }
         }
         .onChange(of: hotKeyManager.isHotKeyPressed) { _, pressed in
@@ -202,31 +203,34 @@ struct ContentView: View {
     }
     
     private func loadModel() {
-        // Don't load if no model is selected
         guard !appModel.selectedModelID.isEmpty else {
             modelLoaded = false
             return
         }
         
-        // Load from the downloaded model path
+        guard let modelPath = appModel.modelService.getModelPath(appModel.selectedModelID) else {
+            appModel.errorMessage = "Model file not found. Download it from the Models tab."
+            modelLoaded = false
+            return
+        }
+        
+        isLoadingModel = true
+        modelLoaded = false
+        appModel.errorMessage = nil
+        
         Task {
-            if let modelPath = appModel.modelService.getModelPath(appModel.selectedModelID) {
-                do {
-                    try transcriptionManager.loadModel(modelPath: modelPath)
-                    DispatchQueue.main.async {
-                        modelLoaded = true
-                        appModel.errorMessage = nil
-                    }
-                } catch {
-                    DispatchQueue.main.async {
-                        appModel.errorMessage = "Failed to load model: \(error.localizedDescription)"
-                        modelLoaded = false
-                    }
+            do {
+                try await transcriptionManager.loadModel(modelPath: modelPath)
+                await MainActor.run {
+                    modelLoaded = true
+                    isLoadingModel = false
+                    appModel.errorMessage = nil
                 }
-            } else {
-                DispatchQueue.main.async {
-                    appModel.errorMessage = "Model file not found. Download it from the Models tab."
+            } catch {
+                await MainActor.run {
+                    appModel.errorMessage = "Failed to load model: \(error.localizedDescription)"
                     modelLoaded = false
+                    isLoadingModel = false
                 }
             }
         }

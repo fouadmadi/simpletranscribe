@@ -12,11 +12,21 @@ class TranscriptionManager: ObservableObject {
     
     init() {}
     
-    func loadModel(modelPath: URL) throws {
-        // Initialize SwiftWhisper
-        self.whisper = Whisper(fromFileURL: modelPath)
-        // Optionally set default params here if needed
-        self.whisper?.params.language = .english
+    func loadModel(modelPath: URL) async throws {
+        guard FileManager.default.fileExists(atPath: modelPath.path) else {
+            throw NSError(domain: "WhisperError", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Model file not found at \(modelPath.lastPathComponent)"])
+        }
+        
+        // Initialize SwiftWhisper on a background thread (heavy I/O + CoreML probe)
+        let w = await Task.detached(priority: .userInitiated) {
+            return Whisper(fromFileURL: modelPath)
+        }.value
+        
+        await MainActor.run {
+            self.whisper = w
+            self.whisper?.params.language = .english
+        }
     }
     
     func startTranscription(language: String) {
