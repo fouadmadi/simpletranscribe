@@ -47,7 +47,7 @@ class TranscriptionManager: ObservableObject {
     func startTranscription(language: String) {
         audioLock.lock()
         self.accumulatedAudio.removeAll(keepingCapacity: true)
-        self.accumulatedAudio.reserveCapacity(4_800_000)  // 5 min at 16kHz
+        self.accumulatedAudio.reserveCapacity(1_920_000)  // 2 min at 16kHz
         audioLock.unlock()
         self.isTranscribing = true
         
