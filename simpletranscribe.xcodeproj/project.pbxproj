@@ -270,7 +270,6 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "SimpleTranscribe needs to control System Events to paste transcribed text at your cursor position.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "We need camera access for device discovery.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need you to grant microphone access so we can record audio for transcription.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -321,7 +320,6 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "SimpleTranscribe needs to control System Events to paste transcribed text at your cursor position.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "We need camera access for device discovery.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need you to grant microphone access so we can record audio for transcription.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
