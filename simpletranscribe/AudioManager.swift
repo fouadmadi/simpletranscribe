@@ -4,6 +4,7 @@ import CoreAudio
 class AudioManager: NSObject {
     private lazy var engine = AVAudioEngine()
     private var converter: AVAudioConverter?
+    private var outputBuffer: AVAudioPCMBuffer?
     
     // Whisper requires 16kHz mono, 32-bit float or 16-bit int depending on the exact implementation.
     // whisper.cpp Swift bindings conventionally use an array of Floats at 16kHz.
@@ -51,6 +52,11 @@ class AudioManager: NSObject {
         // Set up the converter
         self.converter = AVAudioConverter(from: inputFormat, to: outputFormat)
         
+        // Pre-allocate output buffer for reuse across processBuffer calls
+        let tapBufferSize: AVAudioFrameCount = 1024
+        let outputCapacity = AVAudioFrameCount(ceil(Double(tapBufferSize) * (targetSampleRate / inputFormat.sampleRate)))
+        self.outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputCapacity)
+        
         // Install tap on the input node
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] (buffer, time) in
             guard let self = self else { return }
@@ -64,11 +70,12 @@ class AudioManager: NSObject {
     private func processBuffer(buffer: AVAudioPCMBuffer, fromFormat: AVAudioFormat, toFormat: AVAudioFormat) {
         guard let converter = self.converter else { return }
         
-        // Calculate the output frame capacity
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * (targetSampleRate / fromFormat.sampleRate))
-        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: toFormat, frameCapacity: capacity) else {
-            return
+        // Re-allocate only if the incoming buffer is larger than expected
+        let requiredCapacity = AVAudioFrameCount(ceil(Double(buffer.frameLength) * (targetSampleRate / fromFormat.sampleRate)))
+        if outputBuffer == nil || outputBuffer!.frameCapacity < requiredCapacity {
+            outputBuffer = AVAudioPCMBuffer(pcmFormat: toFormat, frameCapacity: requiredCapacity)
         }
+        guard let outputBuffer = self.outputBuffer else { return }
         
         var error: NSError? = nil
         let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
@@ -95,5 +102,6 @@ class AudioManager: NSObject {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         converter = nil
+        outputBuffer = nil
     }
 }

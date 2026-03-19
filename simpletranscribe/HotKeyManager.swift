@@ -7,6 +7,7 @@ class HotKeyManager {
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var lastReportedState = false
 
     // The modifier combo we're looking for: fn + ctrl
     private let requiredFlags: NSEvent.ModifierFlags = [.function, .control]
@@ -51,14 +52,15 @@ class HotKeyManager {
     }
 
     private func handleFlagsChanged(_ event: NSEvent) {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let pressed = flags.contains(requiredFlags)
+        let pressed = event.modifierFlags.contains(requiredFlags)
+
+        // Skip if state hasn't changed (avoids unnecessary main-thread dispatches)
+        guard pressed != lastReportedState else { return }
+        lastReportedState = pressed
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if pressed != self.isHotKeyPressed {
-                self.isHotKeyPressed = pressed
-            }
+            self.isHotKeyPressed = pressed
         }
     }
 }

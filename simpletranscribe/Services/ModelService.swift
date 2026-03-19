@@ -12,6 +12,8 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     private var downloadTasks: [String: URLSessionDownloadTask] = [:]
     private var downloadContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var urlSession: URLSession!
+    private var lastProgressUpdate: [String: Date] = [:]
+    private var modelIndex: [String: Int] = [:]
     
     override init() {
         // Create models directory: ~/Library/Application Support/com.simpletranscribe/models/
@@ -23,7 +25,12 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         // Initialize URLSession with delegate
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.waitsForConnectivity = true
-        self.urlSession = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: .main)
+        self.urlSession = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: {
+            let queue = OperationQueue()
+            queue.maxConcurrentOperationCount = 1
+            queue.name = "com.simpletranscribe.download-delegate"
+            return queue
+        }())
         
         // Create directory if needed
         try? FileManager.default.createDirectory(at: modelsDirectory, withIntermediateDirectories: true)
@@ -70,13 +77,15 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         }
         
         self.availableModels = models
+        rebuildModelIndex()
     }
     
     /// Download a model by ID
     func downloadModel(_ modelID: String) async throws {
-        guard let model = availableModels.first(where: { $0.id == modelID }) else {
+        guard let index = modelIndex[modelID] else {
             throw ModelDownloadError.modelNotFound
         }
+        let model = availableModels[index]
         
         guard model.status != .downloaded else {
             return  // Already downloaded
@@ -101,30 +110,34 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         downloadTasks.removeValue(forKey: modelID)
         downloadProgress.removeValue(forKey: modelID)
         
-        if let index = availableModels.firstIndex(where: { $0.id == modelID }) {
+        if let index = modelIndex[modelID] {
             availableModels[index].status = .notDownloaded
         }
     }
     
     /// Delete a downloaded model
     func deleteModel(_ modelID: String) throws {
-        guard let model = availableModels.first(where: { $0.id == modelID }) else {
+        guard let index = modelIndex[modelID] else {
             throw ModelDownloadError.modelNotFound
         }
+        let model = availableModels[index]
         
         if let path = model.downloadedPath {
             try FileManager.default.removeItem(at: path)
         }
         
-        if let index = availableModels.firstIndex(where: { $0.id == modelID }) {
-            availableModels[index].status = .notDownloaded
-            availableModels[index].downloadedPath = nil
-        }
+        availableModels[index].status = .notDownloaded
+        availableModels[index].downloadedPath = nil
+    }
+    
+    /// Get a model by ID (O(1) lookup)
+    func getModel(_ modelID: String) -> ModelInfo? {
+        modelIndex[modelID].map { availableModels[$0] }
     }
     
     /// Get the local path for a model
     func getModelPath(_ modelID: String) -> URL? {
-        availableModels.first(where: { $0.id == modelID })?.downloadedPath
+        getModel(modelID)?.downloadedPath
     }
     
     /// Calculate total size of downloaded models
@@ -137,9 +150,13 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     // MARK: - Private Helpers
     
     private func updateModelStatus(_ modelID: String, to status: ModelInfo.ModelStatus) {
-        if let index = availableModels.firstIndex(where: { $0.id == modelID }) {
+        if let index = modelIndex[modelID] {
             availableModels[index].status = status
         }
+    }
+    
+    private func rebuildModelIndex() {
+        modelIndex = Dictionary(uniqueKeysWithValues: availableModels.enumerated().map { ($1.id, $0) })
     }
     
     private func getFileSize(_ url: URL) -> Int64 {
@@ -158,37 +175,35 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        // Find the model ID from the download task
-        let modelID = downloadTasks.first(where: { $0.value === downloadTask })?.key
+        // Look up modelID safely from main thread
+        var modelID: String?
+        DispatchQueue.main.sync {
+            modelID = self.downloadTasks.first(where: { $0.value === downloadTask })?.key
+        }
         guard let modelID = modelID else { return }
         
-        // Work with the file synchronously while it's still available
+        // File copy happens on the background delegate queue (desired for large files)
         do {
-            // Ensure models directory exists
             try FileManager.default.createDirectory(at: modelsDirectory, withIntermediateDirectories: true, attributes: nil)
             
             let destinationURL = modelsDirectory.appending(path: modelID + ".bin")
             
-            // Remove existing file if it exists
             if FileManager.default.fileExists(atPath: destinationURL.path) {
                 try FileManager.default.removeItem(at: destinationURL)
             }
             
-            // Copy the temp file to the final location synchronously
             try FileManager.default.copyItem(at: location, to: destinationURL)
             
-            // Now update UI on main thread
             DispatchQueue.main.async {
-                // Update model status
-                if let index = self.availableModels.firstIndex(where: { $0.id == modelID }) {
+                if let index = self.modelIndex[modelID] {
                     self.availableModels[index].status = .downloaded
                     self.availableModels[index].downloadedPath = destinationURL
                 }
                 
                 self.downloadProgress[modelID] = 1.0
                 self.downloadTasks.removeValue(forKey: modelID)
+                self.lastProgressUpdate.removeValue(forKey: modelID)
                 
-                // Resume continuation
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
                     continuation.resume()
                 }
@@ -199,6 +214,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 self.updateModelStatus(modelID, to: .failed)
                 self.downloadError[modelID] = error.localizedDescription
                 self.downloadTasks.removeValue(forKey: modelID)
+                self.lastProgressUpdate.removeValue(forKey: modelID)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
                     continuation.resume()
@@ -214,7 +230,20 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        guard let modelID = downloadTasks.first(where: { $0.value === downloadTask })?.key else { return }
+        var modelID: String?
+        DispatchQueue.main.sync {
+            modelID = self.downloadTasks.first(where: { $0.value === downloadTask })?.key
+        }
+        guard let modelID = modelID else { return }
+        
+        let now = Date()
+        let throttleInterval: TimeInterval = 0.2  // 5 Hz max
+        
+        if let lastUpdate = lastProgressUpdate[modelID],
+           now.timeIntervalSince(lastUpdate) < throttleInterval {
+            return
+        }
+        lastProgressUpdate[modelID] = now
         
         let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
         
@@ -229,13 +258,18 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         didCompleteWithError error: Error?
     ) {
         guard let downloadTask = task as? URLSessionDownloadTask else { return }
-        guard let modelID = downloadTasks.first(where: { $0.value === downloadTask })?.key else { return }
+        var modelID: String?
+        DispatchQueue.main.sync {
+            modelID = self.downloadTasks.first(where: { $0.value === downloadTask })?.key
+        }
+        guard let modelID = modelID else { return }
         
         if let error = error {
             DispatchQueue.main.async {
                 self.updateModelStatus(modelID, to: .failed)
                 self.downloadError[modelID] = error.localizedDescription
                 self.downloadTasks.removeValue(forKey: modelID)
+                self.lastProgressUpdate.removeValue(forKey: modelID)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
                     continuation.resume()

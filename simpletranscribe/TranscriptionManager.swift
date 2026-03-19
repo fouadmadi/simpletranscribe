@@ -9,6 +9,16 @@ class TranscriptionManager: ObservableObject {
     
     // For streaming
     private var accumulatedAudio: [Float] = []
+    private let audioLock = NSLock()
+    
+    private static let languageMap: [String: WhisperLanguage] = [
+        "auto": .auto,
+        "en": .english,
+        "es": .spanish,
+        "fr": .french,
+        "de": .german,
+        "zh": .chinese,
+    ]
     
     init() {}
     
@@ -16,6 +26,11 @@ class TranscriptionManager: ObservableObject {
         guard FileManager.default.fileExists(atPath: modelPath.path) else {
             throw NSError(domain: "WhisperError", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Model file not found at \(modelPath.lastPathComponent)"])
+        }
+        
+        // Free old model memory before loading new one
+        await MainActor.run {
+            self.whisper = nil
         }
         
         // Initialize SwiftWhisper on a background thread (heavy I/O + CoreML probe)
@@ -30,23 +45,21 @@ class TranscriptionManager: ObservableObject {
     }
     
     func startTranscription(language: String) {
-        self.accumulatedAudio.removeAll()
+        audioLock.lock()
+        self.accumulatedAudio.removeAll(keepingCapacity: true)
+        self.accumulatedAudio.reserveCapacity(4_800_000)  // 5 min at 16kHz
+        audioLock.unlock()
         self.isTranscribing = true
         
-        // Update language
-        var whisperLanguage: WhisperLanguage = .english
-        if language == "auto" { whisperLanguage = .auto }
-        else if language == "en" { whisperLanguage = .english }
-        else if language == "es" { whisperLanguage = .spanish }
-        else if language == "fr" { whisperLanguage = .french }
-        else if language == "de" { whisperLanguage = .german }
-        else if language == "zh" { whisperLanguage = .chinese }
+        let whisperLanguage = Self.languageMap[language] ?? .english
         
         self.whisper?.params.language = whisperLanguage
     }
         
     func appendAudio(buffer: [Float]) {
+        audioLock.lock()
         self.accumulatedAudio.append(contentsOf: buffer)
+        audioLock.unlock()
     }
     
     /// Process the currently accumulated audio and return the full text.
@@ -62,11 +75,15 @@ class TranscriptionManager: ObservableObject {
             throw NSError(domain: "WhisperError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Model not loaded"])
         }
         
-        guard !accumulatedAudio.isEmpty else { return "" }
+        audioLock.lock()
+        let audioSnapshot = accumulatedAudio
+        audioLock.unlock()
+        
+        guard !audioSnapshot.isEmpty else { return "" }
         
         // SwiftWhisper transcribe returns [Segment] synchronously or via delegate, but it also has async methods depending on version.
         // The most standard way in SwiftWhisper 1.0.0+ is to use the async `transcribe` function.
-        let segments = try await whisper.transcribe(audioFrames: accumulatedAudio)
+        let segments = try await whisper.transcribe(audioFrames: audioSnapshot)
         
         let text = segments.map { $0.text }.joined(separator: " ")
         

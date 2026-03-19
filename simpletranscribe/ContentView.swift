@@ -14,7 +14,7 @@ struct ContentView: View {
     @State private var isLoadingModel = false
     
     var currentModel: ModelInfo? {
-        appModel.modelService.availableModels.first { $0.id == appModel.selectedModelID }
+        appModel.modelService.getModel(appModel.selectedModelID)
     }
     
     var hasDownloadedModels: Bool {
@@ -83,10 +83,11 @@ struct ContentView: View {
                 .frame(maxWidth: 250)
                 
                 Picker("Model", selection: $appModel.selectedModelID) {
-                    if appModel.modelService.availableModels.filter({ $0.isAvailable }).isEmpty {
+                    let downloadedModels = appModel.modelService.availableModels.filter({ $0.isAvailable })
+                    if downloadedModels.isEmpty {
                         Text("No models downloaded").tag("")
                     }
-                    ForEach(appModel.modelService.availableModels.filter { $0.isAvailable }) { model in
+                    ForEach(downloadedModels) { model in
                         Text(model.name).tag(model.id)
                     }
                 }
@@ -205,7 +206,7 @@ struct ContentView: View {
             appModel.errorMessage = nil
             // Auto-load the newly selected model if it's downloaded
             if !newValue.isEmpty,
-               appModel.modelService.availableModels.first(where: { $0.id == newValue })?.isAvailable == true {
+               appModel.modelService.getModel(newValue)?.isAvailable == true {
                 loadModel()
             }
         }
