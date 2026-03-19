@@ -1,25 +1,39 @@
-# Ignore local files
+# Xcode
+DerivedData/
+build/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Xcode build artifacts
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Project-specific
 *.rb
 *.bin
 *.md
-
-# keep README
 !README.md
 
-# Common git ignore patterns
-.DS_Store
+# Misc
 .env
-node_modules/
-__pycache__/
-*.pyc
-.venv/
-dist/
-build/
 *.log
-.idea/
-.vscode/
 *.swp
 *.swo
 *~
-.gradle/
-.idea/
+.vscode/
