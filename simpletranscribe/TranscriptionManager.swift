@@ -40,8 +40,19 @@ class TranscriptionManager: ObservableObject {
         
         await MainActor.run {
             self.whisper = w
-            self.whisper?.params.language = .english
+            self.configureParams()
         }
+    }
+    
+    /// Configure whisper params for optimal transcription speed
+    private func configureParams() {
+        guard let params = whisper?.params else { return }
+        params.language = .english
+        params.n_threads = Int32(max(1, ProcessInfo.processInfo.activeProcessorCount))
+        params.no_context = true
+        params.single_segment = true
+        params.print_progress = false
+        params.print_timestamps = false
     }
     
     func startTranscription(language: String) {
