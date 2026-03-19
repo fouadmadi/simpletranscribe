@@ -301,6 +301,7 @@ struct ContentView: View {
         if pressed {
             startRecording()
         } else if appModel.isRecording {
+            print("[Paste] hotkey released, stopping recording (autoPaste=true)")
             stopRecordingAndTranscribe(autoPaste: true)
         }
     }
@@ -341,6 +342,7 @@ struct ContentView: View {
             do {
                 let text = try await transcriptionManager.processAudio { partial in }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                print("[Paste] transcription result: '\(trimmed)' (autoPaste=\(autoPaste))")
                 
                 if !trimmed.isEmpty {
                     if appModel.transcribedText.isEmpty {
@@ -354,9 +356,13 @@ struct ContentView: View {
                 SoundManager.playTranscriptionComplete()
                 
                 if autoPaste && !trimmed.isEmpty {
+                    print("[Paste] calling copyAndPaste")
                     copyAndPaste(trimmed)
+                } else {
+                    print("[Paste] skipped paste: autoPaste=\(autoPaste), isEmpty=\(trimmed.isEmpty)")
                 }
             } catch {
+                print("[Paste] transcription error: \(error)")
                 appModel.errorMessage = "Transcription failed: \(error.localizedDescription)"
                 appModel.isProcessing = false
                 SoundManager.playError()
@@ -375,15 +381,26 @@ struct ContentView: View {
     private func copyAndPaste(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        let didSet = pasteboard.setString(text, forType: .string)
+        print("[Paste] pasteboard set: \(didSet), text length: \(text.count)")
+        
+        // Verify pasteboard content
+        let verify = pasteboard.string(forType: .string)
+        print("[Paste] pasteboard verify: '\(verify?.prefix(50) ?? "nil")'")
+        
+        // Check frontmost app
+        if let frontApp = NSWorkspace.shared.frontmostApplication {
+            print("[Paste] frontmost app: \(frontApp.localizedName ?? "unknown") (pid: \(frontApp.processIdentifier))")
+        }
         
         // Small delay to ensure pasteboard is populated, then paste
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            // Try CGEvent first (more reliable, requires Accessibility permission)
+            print("[Paste] attempting CGEvent paste...")
             if Self.pasteWithCGEvent() {
+                print("[Paste] CGEvent paste succeeded")
                 return
             }
-            // Fall back to AppleScript
+            print("[Paste] CGEvent failed, trying AppleScript...")
             Self.pasteWithAppleScript()
         }
     }
@@ -391,39 +408,49 @@ struct ContentView: View {
     /// Simulate ⌘V using CGEvent (Quartz Event Services).
     /// Returns true if the events were posted successfully.
     private static func pasteWithCGEvent() -> Bool {
-        // Check Accessibility permission before attempting to post events.
-        // Without this, CGEvent creation succeeds but post() silently does nothing.
-        guard CGPreflightPostEventAccess() else {
-            print("CGEvent paste skipped: no Accessibility permission")
+        let hasPreflight = CGPreflightPostEventAccess()
+        print("[Paste][CGEvent] preflight=\(hasPreflight)")
+        
+        guard hasPreflight else {
+            print("[Paste][CGEvent] no Accessibility permission — requesting...")
+            CGRequestPostEventAccess()
             return false
         }
         
         let source = CGEventSource(stateID: .hidSystemState)
+        print("[Paste][CGEvent] source created: \(source != nil)")
         
         // 'v' key = keycode 9
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
+            print("[Paste][CGEvent] failed to create key events")
             return false
         }
         
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        
+        // Try session event tap (works better with sandboxed apps)
+        keyDown.post(tap: .cgSessionEventTap)
+        keyUp.post(tap: .cgSessionEventTap)
+        print("[Paste][CGEvent] posted ⌘V via cgSessionEventTap")
         return true
     }
     
     /// Simulate ⌘V using AppleScript → System Events (sandboxed fallback).
     private static func pasteWithAppleScript() {
+        print("[Paste][AppleScript] attempting...")
         let script = NSAppleScript(source: """
             tell application "System Events"
                 keystroke "v" using command down
             end tell
         """)
         var error: NSDictionary?
-        script?.executeAndReturnError(&error)
+        let result = script?.executeAndReturnError(&error)
         if let error {
-            print("AppleScript paste failed: \(error)")
+            print("[Paste][AppleScript] FAILED: \(error)")
+        } else {
+            print("[Paste][AppleScript] succeeded, result: \(String(describing: result))")
         }
     }
     
