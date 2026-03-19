@@ -206,7 +206,7 @@ struct ContentView: View {
                         .buttonStyle(.borderedProminent)
                         .font(.caption)
                     }
-                    Text("In Settings → Accessibility, click + and add this app. If running from Xcode, add the app from:\n~/Library/Developer/Xcode/DerivedData/.../Build/Products/Debug/")
+                    Text("In Settings → Accessibility, click + and add this app.")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
