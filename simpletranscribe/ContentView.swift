@@ -190,20 +190,26 @@ struct ContentView: View {
             }
             
             if !accessibilityGranted {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.orange)
-                    Text("Accessibility permission required for paste-at-cursor.")
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.orange)
+                        Text("Accessibility permission needed for paste-at-cursor")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Button("Open Settings") {
+                            NSWorkspace.shared.open(
+                                URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button("Open Settings") {
-                        NSWorkspace.shared.open(
-                            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-                        )
                     }
-                    .buttonStyle(.borderedProminent)
-                    .font(.caption)
+                    Text("In Settings → Accessibility, click + and add this app. If running from Xcode, add the app from:\n~/Library/Developer/Xcode/DerivedData/.../Build/Products/Debug/")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding()
                 .background(Color.orange.opacity(0.1))
@@ -384,11 +390,6 @@ struct ContentView: View {
         let didSet = pasteboard.setString(text, forType: .string)
         print("[Paste] pasteboard set: \(didSet), text length: \(text.count)")
         
-        // Verify pasteboard content
-        let verify = pasteboard.string(forType: .string)
-        print("[Paste] pasteboard verify: '\(verify?.prefix(50) ?? "nil")'")
-        
-        // Check frontmost app
         if let frontApp = NSWorkspace.shared.frontmostApplication {
             print("[Paste] frontmost app: \(frontApp.localizedName ?? "unknown") (pid: \(frontApp.processIdentifier))")
         }
@@ -401,26 +402,31 @@ struct ContentView: View {
                 return
             }
             print("[Paste] CGEvent failed, trying AppleScript...")
-            Self.pasteWithAppleScript()
+            if Self.pasteWithAppleScript() {
+                print("[Paste] AppleScript paste succeeded")
+                return
+            }
+            print("[Paste] AppleScript failed, trying osascript process...")
+            if Self.pasteWithOsascript() {
+                print("[Paste] osascript paste succeeded")
+                return
+            }
+            print("[Paste] ALL paste methods failed — text is on clipboard, user can ⌘V manually")
         }
     }
     
     /// Simulate ⌘V using CGEvent (Quartz Event Services).
-    /// Returns true if the events were posted successfully.
+    /// Requires Accessibility permission granted to this specific app binary.
     private static func pasteWithCGEvent() -> Bool {
         let hasPreflight = CGPreflightPostEventAccess()
         print("[Paste][CGEvent] preflight=\(hasPreflight)")
         
         guard hasPreflight else {
-            print("[Paste][CGEvent] no Accessibility permission — requesting...")
-            CGRequestPostEventAccess()
             return false
         }
         
         let source = CGEventSource(stateID: .hidSystemState)
-        print("[Paste][CGEvent] source created: \(source != nil)")
         
-        // 'v' key = keycode 9
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
             print("[Paste][CGEvent] failed to create key events")
@@ -429,28 +435,54 @@ struct ContentView: View {
         
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
-        
-        // Try session event tap (works better with sandboxed apps)
         keyDown.post(tap: .cgSessionEventTap)
         keyUp.post(tap: .cgSessionEventTap)
         print("[Paste][CGEvent] posted ⌘V via cgSessionEventTap")
         return true
     }
     
-    /// Simulate ⌘V using AppleScript → System Events (sandboxed fallback).
-    private static func pasteWithAppleScript() {
-        print("[Paste][AppleScript] attempting...")
+    /// Simulate ⌘V via AppleScript using System Events bundle identifier.
+    @discardableResult
+    private static func pasteWithAppleScript() -> Bool {
+        // Use bundle ID to address System Events — more reliable than name in sandbox
         let script = NSAppleScript(source: """
-            tell application "System Events"
+            tell application id "com.apple.systemevents"
                 keystroke "v" using command down
             end tell
         """)
         var error: NSDictionary?
-        let result = script?.executeAndReturnError(&error)
+        script?.executeAndReturnError(&error)
         if let error {
             print("[Paste][AppleScript] FAILED: \(error)")
-        } else {
-            print("[Paste][AppleScript] succeeded, result: \(String(describing: result))")
+            return false
+        }
+        print("[Paste][AppleScript] succeeded")
+        return true
+    }
+    
+    /// Simulate ⌘V by spawning osascript as a child process.
+    /// The child inherits entitlements but may have different sandbox behavior.
+    private static func pasteWithOsascript() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = [
+            "-e", "tell application id \"com.apple.systemevents\" to keystroke \"v\" using command down"
+        ]
+        let pipe = Pipe()
+        process.standardError = pipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let status = process.terminationStatus
+            if status != 0 {
+                let stderr = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                print("[Paste][osascript] exit \(status): \(stderr)")
+            }
+            return status == 0
+        } catch {
+            print("[Paste][osascript] launch failed: \(error)")
+            return false
         }
     }
     
