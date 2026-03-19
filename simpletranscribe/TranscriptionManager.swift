@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import SwiftWhisper
+import whisper_cpp
 
 class TranscriptionManager: ObservableObject {
     var whisper: Whisper?
@@ -50,6 +51,7 @@ class TranscriptionManager: ObservableObject {
         params.language = .english
         params.n_threads = Int32(max(1, ProcessInfo.processInfo.activeProcessorCount))
         params.no_context = true
+        params.greedy.best_of = 1
         params.single_segment = true
         params.print_progress = false
         params.print_timestamps = false
@@ -73,6 +75,13 @@ class TranscriptionManager: ObservableObject {
         audioLock.unlock()
     }
     
+    /// Thread-safe snapshot of accumulated audio
+    private func takeAudioSnapshot() -> [Float] {
+        audioLock.lock()
+        defer { audioLock.unlock() }
+        return accumulatedAudio
+    }
+    
     /// Process the currently accumulated audio and return the full text.
     func processAudio(onPartialOutput: @escaping (String) -> Void) async throws -> String {
         // Ensure isTranscribing is always reset, regardless of early returns or errors
@@ -86,9 +95,7 @@ class TranscriptionManager: ObservableObject {
             throw NSError(domain: "WhisperError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Model not loaded"])
         }
         
-        audioLock.lock()
-        let audioSnapshot = accumulatedAudio
-        audioLock.unlock()
+        let audioSnapshot = takeAudioSnapshot()
         
         guard !audioSnapshot.isEmpty else { return "" }
         
