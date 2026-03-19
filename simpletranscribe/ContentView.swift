@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import ApplicationServices
 
 struct ContentView: View {
     @State private var appModel = AppModel()
@@ -10,6 +11,7 @@ struct ContentView: View {
     // For copy to clipboard alert
     @State private var showCopiedAlert = false
     @State private var showModelManager = false
+    @State private var accessibilityGranted = false
     @State private var modelLoaded = false
     @State private var isLoadingModel = false
     
@@ -186,6 +188,26 @@ struct ContentView: View {
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            
+            if !accessibilityGranted {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text("Accessibility permission required for paste-at-cursor.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Open Settings") {
+                        NSWorkspace.shared.open(
+                            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.caption)
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
         }
         .frame(minWidth: 600, minHeight: 500)
         .task {
@@ -194,6 +216,7 @@ struct ContentView: View {
             appModel.setup()
             hotKeyManager.setup()
             setupAudio()
+            requestAccessibilityPermission()
             
             // Auto-load the selected model if one is already downloaded
             if !appModel.selectedModelID.isEmpty,
@@ -220,6 +243,9 @@ struct ContentView: View {
         .onChange(of: hotKeyManager.isHotKeyPressed) { _, pressed in
             handleHotKey(pressed: pressed)
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            accessibilityGranted = AXIsProcessTrusted()
+        }
     }
     
     private func setupAudio() {
@@ -228,6 +254,13 @@ struct ContentView: View {
                 transcriptionManager.appendAudio(buffer: buffer)
             }
         }
+    }
+    
+    /// Prompt the user for Accessibility permission (needed for paste-at-cursor via CGEvent).
+    /// Shows the macOS system dialog if not already granted.
+    private func requestAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        accessibilityGranted = AXIsProcessTrustedWithOptions(options)
     }
     
     private func loadModelAsync() async {
@@ -358,6 +391,13 @@ struct ContentView: View {
     /// Simulate ⌘V using CGEvent (Quartz Event Services).
     /// Returns true if the events were posted successfully.
     private static func pasteWithCGEvent() -> Bool {
+        // Check Accessibility permission before attempting to post events.
+        // Without this, CGEvent creation succeeds but post() silently does nothing.
+        guard CGPreflightPostEventAccess() else {
+            print("CGEvent paste skipped: no Accessibility permission")
+            return false
+        }
+        
         let source = CGEventSource(stateID: .hidSystemState)
         
         // 'v' key = keycode 9
