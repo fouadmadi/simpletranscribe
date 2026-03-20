@@ -3,6 +3,14 @@ import ApplicationServices
 import os
 
 /// Handles paste-at-cursor via multiple strategies (CGEvent, AppleScript, osascript).
+///
+/// Under App Sandbox, the strategies have different requirements:
+/// - **CGEvent**: Requires Accessibility permission (user must grant in System Settings).
+/// - **AppleScript**: Requires `com.apple.security.automation.apple-events` entitlement.
+/// - **osascript**: Will fail under strict sandbox (Process spawning is restricted).
+///   Kept as a last-resort fallback for non-sandboxed development builds.
+///
+/// If all methods fail, text remains on the clipboard for manual ⌘V.
 enum PasteService {
     private static let logger = Logger(subsystem: "com.simpletranscribe", category: "Paste")
 
