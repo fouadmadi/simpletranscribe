@@ -4,240 +4,73 @@ import ApplicationServices
 import os
 
 struct ContentView: View {
-    private static let logger = Logger(subsystem: "com.simpletranscribe", category: "Paste")
-    
+    private static let logger = Logger(subsystem: "com.simpletranscribe", category: "ContentView")
+
     @State private var appModel = AppModel()
     @State private var audioManager = AudioManager()
     @StateObject private var transcriptionManager = TranscriptionManager()
     @Environment(HotKeyManager.self) private var hotKeyManager
-    
-    // For copy to clipboard alert
+
     @State private var showCopiedAlert = false
     @State private var showModelManager = false
     @State private var accessibilityGranted = false
     @State private var modelLoaded = false
     @State private var isLoadingModel = false
-    
+
     var currentModel: ModelInfo? {
         appModel.modelService.getModel(appModel.selectedModelID)
     }
-    
+
     var hasDownloadedModels: Bool {
         appModel.modelService.availableModels.contains { $0.isAvailable }
     }
-    
+
     var canRecord: Bool {
         modelLoaded && currentModel?.isAvailable == true
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header: Controls
-            HStack {
-                Button(action: toggleRecording) {
-                    HStack {
-                        Image(systemName: appModel.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                        Text(appModel.isRecording ? "Stop" : "Transcribe")
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(appModel.isRecording ? .red : .accentColor)
-                .disabled(appModel.isProcessing || !canRecord || isLoadingModel)
-                .help("Hold fn+Control to record, release to transcribe")
-                
-                Text("fn+⌃")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color(NSColor.tertiaryLabelColor).opacity(0.2))
-                    .cornerRadius(4)
-                    .help("Hold fn+Control to start recording, release to stop and transcribe")
-                
-                if appModel.isProcessing || transcriptionManager.isTranscribing {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .padding(.leading, 8)
-                    Text("Processing...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                if appModel.showTranscriptionStarted {
-                    Label("Transcription started", systemImage: "waveform")
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
-                        .padding(.leading, 8)
-                }
-                
-                Spacer()
-                
-                Button(action: { showModelManager = true }) {
-                    Image(systemName: "gearshape")
-                    Text("Models")
-                }
-                .buttonStyle(.bordered)
-                .help("Manage models")
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
-            
+            RecordingControlsView(
+                isRecording: appModel.isRecording,
+                isProcessing: appModel.isProcessing,
+                isTranscribing: transcriptionManager.isTranscribing,
+                canRecord: canRecord,
+                isLoadingModel: isLoadingModel,
+                showTranscriptionStarted: appModel.showTranscriptionStarted,
+                onToggleRecording: toggleRecording,
+                onShowModelManager: { showModelManager = true }
+            )
+
             Divider()
-            
-            // Sidebar / Settings Area
-            HStack(spacing: 20) {
-                Picker("Microphone", selection: $appModel.selectedInputDevice) {
-                    if appModel.availableInputDevices.isEmpty {
-                        Text("Detecting…").tag(nil as AVCaptureDevice?)
-                    }
-                    ForEach(appModel.availableInputDevices, id: \.uniqueID) { device in
-                        Text(device.localizedName).tag(device as AVCaptureDevice?)
-                    }
-                }
-                .frame(maxWidth: 250)
-                
-                Picker("Model", selection: $appModel.selectedModelID) {
-                    let downloadedModels = appModel.modelService.availableModels.filter({ $0.isAvailable })
-                    if downloadedModels.isEmpty {
-                        Text("No models downloaded").tag("")
-                    }
-                    ForEach(downloadedModels) { model in
-                        Text(model.name).tag(model.id)
-                    }
-                }
-                .frame(maxWidth: 200)
-                
-                Picker("Language", selection: $appModel.selectedLanguage) {
-                    Text("Auto Detect").tag("auto")
-                    Text("English").tag("en")
-                    Text("Spanish").tag("es")
-                    Text("French").tag("fr")
-                    Text("German").tag("de")
-                    Text("Chinese").tag("zh")
-                }
-                .frame(maxWidth: 150)
-                
-                Spacer()
-            }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            
+
+            SettingsAreaView(
+                selectedInputDevice: $appModel.selectedInputDevice,
+                selectedModelID: $appModel.selectedModelID,
+                selectedLanguage: $appModel.selectedLanguage,
+                availableInputDevices: appModel.availableInputDevices,
+                downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
+            )
+
             Divider()
-            
-            // Results Area
-            ZStack(alignment: .bottomTrailing) {
-                TextEditor(text: $appModel.transcribedText)
-                    .font(.body)
-                    .padding()
-                    .frame(minHeight: 200, maxHeight: .infinity)
-                
-                // Copy Button
-                Button(action: copyToClipboard) {
-                    Image(systemName: "doc.on.clipboard")
-                        .padding(8)
-                }
-                .buttonStyle(.borderless)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
-                .cornerRadius(8)
-                .padding()
-                .help("Copy to Clipboard")
-                .popover(isPresented: $showCopiedAlert) {
-                    Text("Copied!")
-                        .padding()
-                }
-            }
-            
-            if isLoadingModel {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Loading model...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .padding()
-                .background(Color.blue.opacity(0.1))
-            } else if !modelLoaded && hasDownloadedModels {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.down.circle")
-                        .foregroundColor(.accentColor)
-                    Text("Model not loaded. Click to load manually.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button("Load Model") {
-                        loadModel()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .font(.caption)
-                    .disabled(appModel.selectedModelID.isEmpty)
-                }
-                .padding()
-                .background(Color.accentColor.opacity(0.08))
-            } else if !modelLoaded {
-                HStack(spacing: 8) {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.orange)
-                    Text("No models downloaded. Download a model to get started.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button("Download") {
-                        showModelManager = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .font(.caption)
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-            }
-            
-            if let error = appModel.errorMessage {
-                Text(error)
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            
-            if !accessibilityGranted {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.orange)
-                        Text("Accessibility permission needed for paste-at-cursor")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Button("Open Settings") {
-                            NSWorkspace.shared.open(
-                                URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .font(.caption)
-                    }
-                    Text("In Settings → Accessibility, click + and add this app.")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-            }
+
+            TranscriptResultsView(
+                transcribedText: $appModel.transcribedText,
+                showCopiedAlert: $showCopiedAlert,
+                onCopy: copyToClipboard
+            )
+
+            modelStatusBanner
+            errorBanner
+            accessibilityBanner
         }
         .frame(minWidth: 600, minHeight: 500)
         .task {
-            // Deferred init: setup() dispatches Core Audio to a background thread,
-            // so it won't block the main thread or interfere with app activation.
             appModel.setup()
             hotKeyManager.setup()
             setupAudio()
             requestAccessibilityPermission()
-            
-            // Auto-load the selected model if one is already downloaded
+
             if !appModel.selectedModelID.isEmpty,
                currentModel?.isAvailable == true {
                 await loadModelAsync()
@@ -246,7 +79,6 @@ struct ContentView: View {
         .onChange(of: appModel.selectedModelID) { oldValue, newValue in
             modelLoaded = false
             appModel.errorMessage = nil
-            // Auto-load the newly selected model if it's downloaded
             if !newValue.isEmpty,
                appModel.modelService.getModel(newValue)?.isAvailable == true {
                 loadModel()
@@ -266,7 +98,100 @@ struct ContentView: View {
             accessibilityGranted = AXIsProcessTrusted()
         }
     }
-    
+
+    // MARK: - Status Banners
+
+    @ViewBuilder
+    private var modelStatusBanner: some View {
+        if isLoadingModel {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Loading model...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding()
+            .background(Color.blue.opacity(0.1))
+        } else if !modelLoaded && hasDownloadedModels {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle")
+                    .foregroundColor(.accentColor)
+                Text("Model not loaded. Click to load manually.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Load Model") {
+                    loadModel()
+                }
+                .buttonStyle(.borderedProminent)
+                .font(.caption)
+                .disabled(appModel.selectedModelID.isEmpty)
+            }
+            .padding()
+            .background(Color.accentColor.opacity(0.08))
+        } else if !modelLoaded {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle")
+                    .foregroundColor(.orange)
+                Text("No models downloaded. Download a model to get started.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Download") {
+                    showModelManager = true
+                }
+                .buttonStyle(.borderedProminent)
+                .font(.caption)
+            }
+            .padding()
+            .background(Color.orange.opacity(0.1))
+        }
+    }
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let error = appModel.errorMessage {
+            Text(error)
+                .foregroundColor(.red)
+                .font(.caption)
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var accessibilityBanner: some View {
+        if !accessibilityGranted {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text("Accessibility permission needed for paste-at-cursor")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button("Open Settings") {
+                        NSWorkspace.shared.open(
+                            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.caption)
+                }
+                Text("In Settings → Accessibility, click + and add this app.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding()
+            .background(Color.orange.opacity(0.1))
+        }
+    }
+
+    // MARK: - Audio & Model
+
     private func setupAudio() {
         audioManager.onBufferReceived = { buffer in
             if appModel.isRecording {
@@ -274,30 +199,28 @@ struct ContentView: View {
             }
         }
     }
-    
-    /// Prompt the user for Accessibility permission (needed for paste-at-cursor via CGEvent).
-    /// Shows the macOS system dialog if not already granted.
+
     private func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         accessibilityGranted = AXIsProcessTrustedWithOptions(options)
     }
-    
+
     private func loadModelAsync() async {
         guard !appModel.selectedModelID.isEmpty else {
             modelLoaded = false
             return
         }
-        
+
         guard let modelPath = appModel.modelService.getModelPath(appModel.selectedModelID) else {
             appModel.errorMessage = "Model file not found. Download it from the Models tab."
             modelLoaded = false
             return
         }
-        
+
         isLoadingModel = true
         modelLoaded = false
         appModel.errorMessage = nil
-        
+
         do {
             try await transcriptionManager.loadModel(modelPath: modelPath)
             modelLoaded = true
@@ -309,13 +232,15 @@ struct ContentView: View {
             isLoadingModel = false
         }
     }
-    
+
     private func loadModel() {
         Task {
             await loadModelAsync()
         }
     }
-    
+
+    // MARK: - Recording
+
     private func handleHotKey(pressed: Bool) {
         if pressed {
             startRecording()
@@ -324,17 +249,17 @@ struct ContentView: View {
             stopRecordingAndTranscribe(autoPaste: true)
         }
     }
-    
+
     private func startRecording() {
         guard canRecord, !appModel.isRecording, !appModel.isProcessing else { return }
-        
+
         appModel.errorMessage = nil
         audioManager.requestMicrophoneAccess { granted in
             guard granted else {
                 appModel.errorMessage = "Microphone access denied."
                 return
             }
-            
+
             do {
                 transcriptionManager.startTranscription(language: appModel.selectedLanguage)
                 appModel.isRecording = true
@@ -349,20 +274,20 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func stopRecordingAndTranscribe(autoPaste: Bool = false) {
         audioManager.stopRecording()
         appModel.isRecording = false
         appModel.isProcessing = true
         appModel.errorMessage = nil
         appModel.showTranscriptionStarted = false
-        
+
         Task {
             do {
-                let text = try await transcriptionManager.processAudio { partial in }
+                let text = try await transcriptionManager.processAudio { _ in }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                Self.logger.debug("transcription result: '\(trimmed, privacy: .public)' (autoPaste=\(autoPaste, privacy: .public))")
-                
+                Self.logger.debug("transcription result length: \(trimmed.count, privacy: .public) (autoPaste=\(autoPaste, privacy: .public))")
+
                 if !trimmed.isEmpty {
                     if appModel.transcribedText.isEmpty {
                         appModel.transcribedText = trimmed
@@ -370,15 +295,12 @@ struct ContentView: View {
                         appModel.transcribedText += " " + trimmed
                     }
                 }
-                
+
                 appModel.isProcessing = false
                 SoundManager.playTranscriptionComplete()
-                
+
                 if autoPaste && !trimmed.isEmpty {
-                    Self.logger.debug("calling copyAndPaste")
-                    copyAndPaste(trimmed)
-                } else {
-                    Self.logger.debug("skipped paste: autoPaste=\(autoPaste, privacy: .public), isEmpty=\(trimmed.isEmpty, privacy: .public)")
+                    PasteService.copyAndPaste(trimmed)
                 }
             } catch {
                 Self.logger.error("transcription error: \(error, privacy: .public)")
@@ -388,7 +310,7 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func toggleRecording() {
         if appModel.isRecording {
             stopRecordingAndTranscribe(autoPaste: false)
@@ -396,114 +318,12 @@ struct ContentView: View {
             startRecording()
         }
     }
-    
-    private func copyAndPaste(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        let didSet = pasteboard.setString(text, forType: .string)
-        Self.logger.debug("pasteboard set: \(didSet, privacy: .public), text length: \(text.count, privacy: .public)")
-        
-        if let frontApp = NSWorkspace.shared.frontmostApplication {
-            Self.logger.debug("frontmost app: \(frontApp.localizedName ?? "unknown", privacy: .public) (pid: \(frontApp.processIdentifier, privacy: .public))")
-        }
-        
-        // Small delay to ensure pasteboard is populated, then paste
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            Self.logger.debug("attempting CGEvent paste...")
-            if Self.pasteWithCGEvent() {
-                Self.logger.debug("CGEvent paste succeeded")
-                return
-            }
-            Self.logger.debug("CGEvent failed, trying AppleScript...")
-            if Self.pasteWithAppleScript() {
-                Self.logger.debug("AppleScript paste succeeded")
-                return
-            }
-            Self.logger.debug("AppleScript failed, trying osascript process...")
-            if Self.pasteWithOsascript() {
-                Self.logger.debug("osascript paste succeeded")
-                return
-            }
-            Self.logger.error("ALL paste methods failed — text is on clipboard, user can ⌘V manually")
-        }
-    }
-    
-    /// Simulate ⌘V using CGEvent (Quartz Event Services).
-    /// Requires Accessibility permission granted to this specific app binary.
-    private static func pasteWithCGEvent() -> Bool {
-        let hasPreflight = CGPreflightPostEventAccess()
-        logger.debug("[CGEvent] preflight=\(hasPreflight, privacy: .public)")
-        
-        guard hasPreflight else {
-            return false
-        }
-        
-        let source = CGEventSource(stateID: .hidSystemState)
-        
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
-            logger.error("[CGEvent] failed to create key events")
-            return false
-        }
-        
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.post(tap: .cgSessionEventTap)
-        keyUp.post(tap: .cgSessionEventTap)
-        logger.debug("[CGEvent] posted ⌘V via cgSessionEventTap")
-        return true
-    }
-    
-    /// Simulate ⌘V via AppleScript using System Events bundle identifier.
-    @discardableResult
-    private static func pasteWithAppleScript() -> Bool {
-        // Use bundle ID to address System Events — more reliable than name in sandbox
-        let script = NSAppleScript(source: """
-            tell application id "com.apple.systemevents"
-                keystroke "v" using command down
-            end tell
-        """)
-        var error: NSDictionary?
-        script?.executeAndReturnError(&error)
-        if let error {
-            logger.error("[AppleScript] FAILED: \(error, privacy: .public)")
-            return false
-        }
-        logger.debug("[AppleScript] succeeded")
-        return true
-    }
-    
-    /// Simulate ⌘V by spawning osascript as a child process.
-    /// The child inherits entitlements but may have different sandbox behavior.
-    private static func pasteWithOsascript() -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = [
-            "-e", "tell application id \"com.apple.systemevents\" to keystroke \"v\" using command down"
-        ]
-        let pipe = Pipe()
-        process.standardError = pipe
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let status = process.terminationStatus
-            if status != 0 {
-                let stderr = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                logger.error("[osascript] exit \(status, privacy: .public): \(stderr, privacy: .public)")
-            }
-            return status == 0
-        } catch {
-            logger.error("[osascript] launch failed: \(error, privacy: .public)")
-            return false
-        }
-    }
-    
+
     private func copyToClipboard() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(appModel.transcribedText, forType: .string)
-        
+
         showCopiedAlert = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             showCopiedAlert = false
