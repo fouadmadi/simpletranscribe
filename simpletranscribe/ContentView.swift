@@ -1,8 +1,11 @@
 import SwiftUI
 import AVFoundation
 import ApplicationServices
+import os
 
 struct ContentView: View {
+    private static let logger = Logger(subsystem: "com.simpletranscribe", category: "Paste")
+    
     @State private var appModel = AppModel()
     @State private var audioManager = AudioManager()
     @StateObject private var transcriptionManager = TranscriptionManager()
@@ -307,7 +310,7 @@ struct ContentView: View {
         if pressed {
             startRecording()
         } else if appModel.isRecording {
-            print("[Paste] hotkey released, stopping recording (autoPaste=true)")
+            Self.logger.debug("hotkey released, stopping recording (autoPaste=true)")
             stopRecordingAndTranscribe(autoPaste: true)
         }
     }
@@ -348,7 +351,7 @@ struct ContentView: View {
             do {
                 let text = try await transcriptionManager.processAudio { partial in }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                print("[Paste] transcription result: '\(trimmed)' (autoPaste=\(autoPaste))")
+                Self.logger.debug("transcription result: '\(trimmed, privacy: .public)' (autoPaste=\(autoPaste, privacy: .public))")
                 
                 if !trimmed.isEmpty {
                     if appModel.transcribedText.isEmpty {
@@ -362,13 +365,13 @@ struct ContentView: View {
                 SoundManager.playTranscriptionComplete()
                 
                 if autoPaste && !trimmed.isEmpty {
-                    print("[Paste] calling copyAndPaste")
+                    Self.logger.debug("calling copyAndPaste")
                     copyAndPaste(trimmed)
                 } else {
-                    print("[Paste] skipped paste: autoPaste=\(autoPaste), isEmpty=\(trimmed.isEmpty)")
+                    Self.logger.debug("skipped paste: autoPaste=\(autoPaste, privacy: .public), isEmpty=\(trimmed.isEmpty, privacy: .public)")
                 }
             } catch {
-                print("[Paste] transcription error: \(error)")
+                Self.logger.error("transcription error: \(error, privacy: .public)")
                 appModel.errorMessage = "Transcription failed: \(error.localizedDescription)"
                 appModel.isProcessing = false
                 SoundManager.playError()
@@ -388,30 +391,30 @@ struct ContentView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let didSet = pasteboard.setString(text, forType: .string)
-        print("[Paste] pasteboard set: \(didSet), text length: \(text.count)")
+        Self.logger.debug("pasteboard set: \(didSet, privacy: .public), text length: \(text.count, privacy: .public)")
         
         if let frontApp = NSWorkspace.shared.frontmostApplication {
-            print("[Paste] frontmost app: \(frontApp.localizedName ?? "unknown") (pid: \(frontApp.processIdentifier))")
+            Self.logger.debug("frontmost app: \(frontApp.localizedName ?? "unknown", privacy: .public) (pid: \(frontApp.processIdentifier, privacy: .public))")
         }
         
         // Small delay to ensure pasteboard is populated, then paste
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            print("[Paste] attempting CGEvent paste...")
+            Self.logger.debug("attempting CGEvent paste...")
             if Self.pasteWithCGEvent() {
-                print("[Paste] CGEvent paste succeeded")
+                Self.logger.debug("CGEvent paste succeeded")
                 return
             }
-            print("[Paste] CGEvent failed, trying AppleScript...")
+            Self.logger.debug("CGEvent failed, trying AppleScript...")
             if Self.pasteWithAppleScript() {
-                print("[Paste] AppleScript paste succeeded")
+                Self.logger.debug("AppleScript paste succeeded")
                 return
             }
-            print("[Paste] AppleScript failed, trying osascript process...")
+            Self.logger.debug("AppleScript failed, trying osascript process...")
             if Self.pasteWithOsascript() {
-                print("[Paste] osascript paste succeeded")
+                Self.logger.debug("osascript paste succeeded")
                 return
             }
-            print("[Paste] ALL paste methods failed — text is on clipboard, user can ⌘V manually")
+            Self.logger.error("ALL paste methods failed — text is on clipboard, user can ⌘V manually")
         }
     }
     
@@ -419,7 +422,7 @@ struct ContentView: View {
     /// Requires Accessibility permission granted to this specific app binary.
     private static func pasteWithCGEvent() -> Bool {
         let hasPreflight = CGPreflightPostEventAccess()
-        print("[Paste][CGEvent] preflight=\(hasPreflight)")
+        logger.debug("[CGEvent] preflight=\(hasPreflight, privacy: .public)")
         
         guard hasPreflight else {
             return false
@@ -429,7 +432,7 @@ struct ContentView: View {
         
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
-            print("[Paste][CGEvent] failed to create key events")
+            logger.error("[CGEvent] failed to create key events")
             return false
         }
         
@@ -437,7 +440,7 @@ struct ContentView: View {
         keyUp.flags = .maskCommand
         keyDown.post(tap: .cgSessionEventTap)
         keyUp.post(tap: .cgSessionEventTap)
-        print("[Paste][CGEvent] posted ⌘V via cgSessionEventTap")
+        logger.debug("[CGEvent] posted ⌘V via cgSessionEventTap")
         return true
     }
     
@@ -453,10 +456,10 @@ struct ContentView: View {
         var error: NSDictionary?
         script?.executeAndReturnError(&error)
         if let error {
-            print("[Paste][AppleScript] FAILED: \(error)")
+            logger.error("[AppleScript] FAILED: \(error, privacy: .public)")
             return false
         }
-        print("[Paste][AppleScript] succeeded")
+        logger.debug("[AppleScript] succeeded")
         return true
     }
     
@@ -477,11 +480,11 @@ struct ContentView: View {
             let status = process.terminationStatus
             if status != 0 {
                 let stderr = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                print("[Paste][osascript] exit \(status): \(stderr)")
+                logger.error("[osascript] exit \(status, privacy: .public): \(stderr, privacy: .public)")
             }
             return status == 0
         } catch {
-            print("[Paste][osascript] launch failed: \(error)")
+            logger.error("[osascript] launch failed: \(error, privacy: .public)")
             return false
         }
     }

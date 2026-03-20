@@ -1,9 +1,12 @@
 import Foundation
 import Observation
+import os
 
 /// Manages model downloads, discovery, and lifecycle
 @Observable
 final class ModelService: NSObject, URLSessionDownloadDelegate {
+    private let logger = Logger(subsystem: "com.simpletranscribe", category: "ModelService")
+    
     var availableModels: [ModelInfo] = []
     var downloadProgress: [String: Double] = [:]
     var downloadError: [String: String] = [:]
@@ -73,7 +76,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 }
             }
         } catch {
-            print("Error discovering custom models: \(error)")
+            logger.error("Error discovering custom models: \(error, privacy: .public)")
         }
         
         self.availableModels = models
@@ -209,7 +212,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 }
             }
         } catch {
-            print("Error finishing download for model \(modelID): \(error)")
+            logger.error("Error finishing download for model \(modelID, privacy: .public): \(error, privacy: .public)")
             DispatchQueue.main.async {
                 self.updateModelStatus(modelID, to: .failed)
                 self.downloadError[modelID] = error.localizedDescription
