@@ -11,10 +11,16 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		62177063947FB4B5B91E7236 /* simpletranscribeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = simpletranscribeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEF939A92F4B943000F40AAF /* simpletranscribe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = simpletranscribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		5C6A517D62B6C2718D561A42 /* simpletranscribeTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = simpletranscribeTests;
+			sourceTree = "<group>";
+		};
 		CEF939AB2F4B943000F40AAF /* simpletranscribe */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = simpletranscribe;
@@ -31,6 +37,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FD11B8ED127F65353EFC4D58 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -38,6 +51,7 @@
 			isa = PBXGroup;
 			children = (
 				CEF939AB2F4B943000F40AAF /* simpletranscribe */,
+				5C6A517D62B6C2718D561A42 /* simpletranscribeTests */,
 				CEF939AA2F4B943000F40AAF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -46,6 +60,7 @@
 			isa = PBXGroup;
 			children = (
 				CEF939A92F4B943000F40AAF /* simpletranscribe.app */,
+				62177063947FB4B5B91E7236 /* simpletranscribeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,6 +68,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		07861CD5D59478D55FDF070A /* simpletranscribeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A2157B622F1571AAC6D33277 /* Build configuration list for PBXNativeTarget "simpletranscribeTests" */;
+			buildPhases = (
+				3DB9030346324CA9C6F22F2A /* Sources */,
+				FD11B8ED127F65353EFC4D58 /* Frameworks */,
+				88D2A463203851544C05D3F6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B7357B80CC914112E1FAEF5D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5C6A517D62B6C2718D561A42 /* simpletranscribeTests */,
+			);
+			name = simpletranscribeTests;
+			productName = simpletranscribeTests;
+			productReference = 62177063947FB4B5B91E7236 /* simpletranscribeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		CEF939A82F4B943000F40AAF /* simpletranscribe */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = CEF939B42F4B943200F40AAF /* Build configuration list for PBXNativeTarget "simpletranscribe" */;
@@ -78,6 +114,16 @@
 		};
 /* End PBXNativeTarget section */
 
+/* Begin PBXContainerItemProxy section */
+		31ED63233D409155E6A6247F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CEF939A12F4B943000F40AAF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CEF939A82F4B943000F40AAF;
+			remoteInfo = simpletranscribe;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXProject section */
 		CEF939A12F4B943000F40AAF /* Project object */ = {
 			isa = PBXProject;
@@ -86,6 +132,10 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					07861CD5D59478D55FDF070A = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = CEF939A82F4B943000F40AAF;
+					};
 					CEF939A82F4B943000F40AAF = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -109,11 +159,19 @@
 			projectRoot = "";
 			targets = (
 				CEF939A82F4B943000F40AAF /* simpletranscribe */,
+				07861CD5D59478D55FDF070A /* simpletranscribeTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		88D2A463203851544C05D3F6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CEF939A72F4B943000F40AAF /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,6 +182,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3DB9030346324CA9C6F22F2A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CEF939A52F4B943000F40AAF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -132,6 +197,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B7357B80CC914112E1FAEF5D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CEF939A82F4B943000F40AAF /* simpletranscribe */;
+			targetProxy = 31ED63233D409155E6A6247F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		CEF939B22F4B943200F40AAF /* Debug */ = {
@@ -324,9 +397,62 @@
 			};
 			name = Release;
 		};
+		0EEF8A6D22A957CAC5D41015 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = mfeglobal.simpletranscribeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/simpletranscribe.app/Contents/MacOS/simpletranscribe";
+			};
+			name = Debug;
+		};
+		3CB743ECD7DDAF191DCC0442 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = mfeglobal.simpletranscribeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/simpletranscribe.app/Contents/MacOS/simpletranscribe";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A2157B622F1571AAC6D33277 /* Build configuration list for PBXNativeTarget "simpletranscribeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0EEF8A6D22A957CAC5D41015 /* Debug */,
+				3CB743ECD7DDAF191DCC0442 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		CEF939A42F4B943000F40AAF /* Build configuration list for PBXProject "simpletranscribe" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
