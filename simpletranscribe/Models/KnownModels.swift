@@ -6,40 +6,40 @@ struct KnownModels {
         ModelInfo(
             id: "ggml-tiny.en",
             name: "Tiny (English)",
-            description: "256 MB • Fastest • Lower accuracy",
-            size: 140_000_000, // ~140 MB
+            description: "Fastest • Lower accuracy",
+            size: 77_700_000, // ~78 MB
             downloadURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin")!,
             language: "en"
         ),
         ModelInfo(
             id: "ggml-base.en",
             name: "Base (English)",
-            description: "514 MB • Fast • Balanced accuracy",
-            size: 140_000_000, // ~140 MB
+            description: "Fast • Balanced accuracy",
+            size: 147_500_000, // ~148 MB
             downloadURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin")!,
             language: "en"
         ),
         ModelInfo(
             id: "ggml-small.en",
             name: "Small (English)",
-            description: "769 MB • Moderate speed • Good accuracy",
-            size: 461_000_000, // ~461 MB
+            description: "Moderate speed • Good accuracy",
+            size: 488_000_000, // ~488 MB
             downloadURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin")!,
             language: "en"
         ),
         ModelInfo(
             id: "ggml-medium.en",
             name: "Medium (English)",
-            description: "1.5 GB • Slow • High accuracy",
-            size: 1_460_000_000, // ~1.5 GB
+            description: "Slow • High accuracy",
+            size: 1_533_000_000, // ~1.5 GB
             downloadURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin")!,
             language: "en"
         ),
         ModelInfo(
             id: "ggml-large",
             name: "Large (Multilingual)",
-            description: "2.9 GB • Very slow • Highest accuracy",
-            size: 2_900_000_000, // ~2.9 GB
+            description: "Very slow • Highest accuracy",
+            size: 3_095_000_000, // ~3.1 GB
             downloadURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin")!,
             language: "multilingual"
         ),
