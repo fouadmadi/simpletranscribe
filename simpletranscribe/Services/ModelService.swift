@@ -18,6 +18,9 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     private var urlSession: URLSession!
     private var lastProgressUpdate: [String: Date] = [:]
     private var modelIndex: [String: Int] = [:]
+    // Thread-safe reverse lookup: task identifier -> model ID (written on main, read on delegate queue)
+    private var taskToModelID: [Int: String] = [:]
+    private let taskMapLock = NSLock()
     
     override init() {
         // Create models directory: ~/Library/Application Support/com.simpletranscribe/models/
@@ -107,6 +110,9 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
             let task = urlSession.downloadTask(with: model.downloadURL)
             downloadTasks[modelID] = task
             downloadContinuations[modelID] = continuation
+            taskMapLock.lock()
+            taskToModelID[task.taskIdentifier] = modelID
+            taskMapLock.unlock()
             task.resume()
         }
     }
@@ -166,6 +172,20 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         modelIndex = Dictionary(uniqueKeysWithValues: availableModels.enumerated().map { ($1.id, $0) })
     }
     
+    /// Thread-safe lookup of model ID from a download task identifier
+    private func modelID(for taskIdentifier: Int) -> String? {
+        taskMapLock.lock()
+        defer { taskMapLock.unlock() }
+        return taskToModelID[taskIdentifier]
+    }
+    
+    /// Clean up task mapping after download completes or fails
+    private func removeTaskMapping(for taskIdentifier: Int) {
+        taskMapLock.lock()
+        taskToModelID.removeValue(forKey: taskIdentifier)
+        taskMapLock.unlock()
+    }
+    
     private func getFileSize(_ url: URL) -> Int64 {
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -210,12 +230,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        // Look up modelID safely from main thread
-        var modelID: String?
-        DispatchQueue.main.sync {
-            modelID = self.downloadTasks.first(where: { $0.value === downloadTask })?.key
-        }
-        guard let modelID = modelID else { return }
+        guard let modelID = modelID(for: downloadTask.taskIdentifier) else { return }
         
         // File copy happens on the background delegate queue (desired for large files)
         do {
@@ -230,10 +245,12 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
             try FileManager.default.copyItem(at: location, to: destinationURL)
             
             // Verify file integrity using SHA256 hash
-            var expectedHash: String?
-            DispatchQueue.main.sync {
-                expectedHash = self.modelIndex[modelID].flatMap { self.availableModels[$0].sha256 }
-            }
+            let expectedHash: String? = {
+                taskMapLock.lock()
+                defer { taskMapLock.unlock() }
+                // sha256 is immutable, safe to read from background queue
+                return KnownModels.model(withID: modelID)?.sha256
+            }()
             try self.verifyFileIntegrity(at: destinationURL, expectedHash: expectedHash)
             
             DispatchQueue.main.async {
@@ -245,6 +262,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 self.downloadProgress[modelID] = 1.0
                 self.downloadTasks.removeValue(forKey: modelID)
                 self.lastProgressUpdate.removeValue(forKey: modelID)
+                self.removeTaskMapping(for: downloadTask.taskIdentifier)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
                     continuation.resume()
@@ -257,6 +275,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 self.downloadError[modelID] = error.localizedDescription
                 self.downloadTasks.removeValue(forKey: modelID)
                 self.lastProgressUpdate.removeValue(forKey: modelID)
+                self.removeTaskMapping(for: downloadTask.taskIdentifier)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
                     continuation.resume()
@@ -272,11 +291,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        var modelID: String?
-        DispatchQueue.main.sync {
-            modelID = self.downloadTasks.first(where: { $0.value === downloadTask })?.key
-        }
-        guard let modelID = modelID else { return }
+        guard let modelID = modelID(for: downloadTask.taskIdentifier) else { return }
         
         let now = Date()
         let throttleInterval: TimeInterval = 0.2  // 5 Hz max
@@ -300,11 +315,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         didCompleteWithError error: Error?
     ) {
         guard let downloadTask = task as? URLSessionDownloadTask else { return }
-        var modelID: String?
-        DispatchQueue.main.sync {
-            modelID = self.downloadTasks.first(where: { $0.value === downloadTask })?.key
-        }
-        guard let modelID = modelID else { return }
+        guard let modelID = modelID(for: downloadTask.taskIdentifier) else { return }
         
         if let error = error {
             DispatchQueue.main.async {
@@ -312,6 +323,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 self.downloadError[modelID] = error.localizedDescription
                 self.downloadTasks.removeValue(forKey: modelID)
                 self.lastProgressUpdate.removeValue(forKey: modelID)
+                self.removeTaskMapping(for: downloadTask.taskIdentifier)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
                     continuation.resume()
