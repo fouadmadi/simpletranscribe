@@ -192,7 +192,7 @@ struct ModelRowView: View {
                 }
             }
             
-            // Error message
+            // Error message with retry
             if model.status == .failed,
                let error = modelService.downloadError[model.id] {
                 HStack(spacing: 8) {
@@ -201,6 +201,15 @@ struct ModelRowView: View {
                     Text(error)
                         .font(.caption)
                         .foregroundColor(.red)
+                    Spacer()
+                    Button(action: {
+                        modelService.downloadError.removeValue(forKey: model.id)
+                        onDownload()
+                    }) {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
         }
