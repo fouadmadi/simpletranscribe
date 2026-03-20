@@ -387,7 +387,10 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
 				ENABLE_USER_SELECTED_FILES = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SimpleTranscribe;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "SimpleTranscribe needs to control System Events to paste transcribed text at your cursor position.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025 SimpleTranscribe. All rights reserved.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need you to grant microphone access so we can record audio for transcription.";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
@@ -424,7 +427,10 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
 				ENABLE_USER_SELECTED_FILES = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SimpleTranscribe;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "SimpleTranscribe needs to control System Events to paste transcribed text at your cursor position.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025 SimpleTranscribe. All rights reserved.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need you to grant microphone access so we can record audio for transcription.";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
