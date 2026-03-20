@@ -29,6 +29,8 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         // Initialize URLSession with delegate
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.waitsForConnectivity = true
+        sessionConfig.timeoutIntervalForRequest = 30
+        sessionConfig.timeoutIntervalForResource = 3600 // 1 hour max for large models
         self.urlSession = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: {
             let queue = OperationQueue()
             queue.maxConcurrentOperationCount = 1
