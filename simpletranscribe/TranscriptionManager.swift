@@ -68,9 +68,15 @@ class TranscriptionManager: ObservableObject {
         self.whisper?.params.language = whisperLanguage
     }
         
+    private static let maxSamples = 30 * 60 * 16_000  // 30 minutes at 16kHz
+
     func appendAudio(buffer: [Float]) {
         audioLock.lock()
-        self.accumulatedAudio.append(contentsOf: buffer)
+        let remaining = Self.maxSamples - accumulatedAudio.count
+        if remaining > 0 {
+            let samplesToAdd = min(buffer.count, remaining)
+            accumulatedAudio.append(contentsOf: buffer.prefix(samplesToAdd))
+        }
         audioLock.unlock()
     }
     
