@@ -6,9 +6,15 @@ import AVFoundation
 class AppModel {
     var isRecording: Bool = false
     var transcribedText: String = ""
-    var selectedLanguage: String = "en"  // Default to English
-    var selectedModelID: String = ""  // Start empty, will be set if models are downloaded
-    var selectedInputDevice: AVCaptureDevice?
+    var selectedLanguage: String = UserDefaults.standard.string(forKey: "selectedLanguage") ?? "en" {
+        didSet { UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage") }
+    }
+    var selectedModelID: String = UserDefaults.standard.string(forKey: "selectedModelID") ?? "" {
+        didSet { UserDefaults.standard.set(selectedModelID, forKey: "selectedModelID") }
+    }
+    var selectedInputDevice: AVCaptureDevice? {
+        didSet { UserDefaults.standard.set(selectedInputDevice?.uniqueID, forKey: "selectedInputDeviceID") }
+    }
     var availableInputDevices: [AVCaptureDevice] = []
     
     // Model management
@@ -24,12 +30,18 @@ class AppModel {
         // ModelService.init() already calls loadAvailableModels().
         // Audio device discovery is deferred to setup() to avoid
         // blocking app activation with Core Audio initialization.
-        selectDefaultModel()
+        
+        // If we have a persisted model that's still valid, use it; otherwise pick default
+        if selectedModelID.isEmpty || modelService.getModel(selectedModelID)?.isAvailable != true {
+            selectDefaultModel()
+        }
     }
     
     /// Call after app has fully activated to initialize audio hardware.
     /// Runs Core Audio discovery on a background thread to avoid blocking the UI.
     func setup() {
+        let savedDeviceID = UserDefaults.standard.string(forKey: "selectedInputDeviceID")
+        
         DispatchQueue.global(qos: .userInitiated).async { [self] in
             let discoverySession = AVCaptureDevice.DiscoverySession(
                 deviceTypes: [.builtInMicrophone, .externalUnknown],
@@ -37,7 +49,8 @@ class AppModel {
                 position: .unspecified
             )
             let devices = discoverySession.devices
-            let defaultDevice = AVCaptureDevice.default(for: .audio) ?? devices.first
+            let restoredDevice = devices.first(where: { $0.uniqueID == savedDeviceID })
+            let defaultDevice = restoredDevice ?? AVCaptureDevice.default(for: .audio) ?? devices.first
             
             DispatchQueue.main.async {
                 self.availableInputDevices = devices
