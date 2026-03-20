@@ -61,18 +61,22 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
             }
         }
         
-        // Discover custom .bin files in the models directory
+        // Discover custom .bin files in the models directory (validate format before accepting)
         do {
             let contents = try FileManager.default.contentsOfDirectory(at: modelsDirectory, includingPropertiesForKeys: nil)
             for url in contents where url.pathExtension == "bin" {
                 let modelID = url.deletingPathExtension().lastPathComponent
                 // Only add if not already in the known models list
                 if !models.contains(where: { $0.id == modelID }) {
+                    guard isValidGGMLFile(at: url) else {
+                        logger.debug("Skipping unrecognized file: \(url.lastPathComponent, privacy: .public)")
+                        continue
+                    }
                     var customModel = ModelInfo(
                         id: modelID,
                         name: modelID,
                         description: "Custom model",
-                        size: 0,
+                        size: getFileSize(url),
                         downloadURL: URL(string: "about:blank")!,
                         language: "unknown",
                         sha256: nil
@@ -193,6 +197,20 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         } catch {
             return 0
         }
+    }
+    
+    /// Validate that a file has a recognized GGML magic header
+    private func isValidGGMLFile(at url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { handle.closeFile() }
+        
+        let headerData = handle.readData(ofLength: 4)
+        guard headerData.count == 4 else { return false }
+        
+        let magic = headerData.withUnsafeBytes { $0.load(as: UInt32.self) }
+        // Known GGML magic numbers: 0x67676d6c ("ggml"), 0x67676d66 ("ggmf"), 0x67676a74 ("ggjt")
+        let validMagics: Set<UInt32> = [0x67676d6c, 0x67676d66, 0x67676a74]
+        return validMagics.contains(magic)
     }
     
     /// Compute SHA256 hash of a file using streaming reads to avoid loading large models into memory
