@@ -45,6 +45,16 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(appModel.isRecording ? .red : .accentColor)
                 .disabled(appModel.isProcessing || !canRecord || isLoadingModel)
+                .help("Hold fn+Control to record, release to transcribe")
+                
+                Text("fn+⌃")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color(NSColor.tertiaryLabelColor).opacity(0.2))
+                    .cornerRadius(4)
+                    .help("Hold fn+Control to start recording, release to stop and transcribe")
                 
                 if appModel.isProcessing || transcriptionManager.isTranscribing {
                     ProgressView()
