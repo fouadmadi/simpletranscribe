@@ -4,10 +4,11 @@ import Foundation
 struct ModelInfo: Identifiable, Codable {
     let id: String                    // e.g., "ggml-tiny.en"
     let name: String                  // e.g., "Tiny (English)"
-    let description: String           // e.g., "256 MB, Fast, Lower accuracy"
+    let description: String           // e.g., "Fastest, Lower accuracy"
     let size: Int64                   // Size in bytes
     let downloadURL: URL              // Remote download source
     let language: String              // e.g., "en" or "multilingual"
+    let sha256: String?               // Expected SHA256 hash for verification
     
     // Local state
     var status: ModelStatus = .notDownloaded

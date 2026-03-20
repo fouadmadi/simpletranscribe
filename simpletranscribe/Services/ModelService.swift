@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import os
+import CryptoKit
 
 /// Manages model downloads, discovery, and lifecycle
 @Observable
@@ -68,7 +69,8 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                         description: "Custom model",
                         size: 0,
                         downloadURL: URL(string: "about:blank")!,
-                        language: "unknown"
+                        language: "unknown",
+                        sha256: nil
                     )
                     customModel.status = .downloaded
                     customModel.downloadedPath = url
@@ -171,6 +173,34 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         }
     }
     
+    /// Compute SHA256 hash of a file using streaming reads to avoid loading large models into memory
+    private func sha256OfFile(at url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { handle.closeFile() }
+        
+        var hasher = SHA256()
+        let bufferSize = 1024 * 1024 // 1 MB chunks
+        while autoreleasepool(invoking: {
+            let data = handle.readData(ofLength: bufferSize)
+            guard !data.isEmpty else { return false }
+            hasher.update(data: data)
+            return true
+        }) {}
+        
+        let digest = hasher.finalize()
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+    
+    /// Verify downloaded file matches expected SHA256 hash
+    private func verifyFileIntegrity(at url: URL, expectedHash: String?) throws {
+        guard let expectedHash = expectedHash, !expectedHash.isEmpty else { return }
+        
+        let actualHash = try sha256OfFile(at: url)
+        guard actualHash == expectedHash else {
+            throw ModelDownloadError.hashMismatch(expected: expectedHash, actual: actualHash)
+        }
+    }
+    
     // MARK: - URLSessionDownloadDelegate
     
     func urlSession(
@@ -196,6 +226,13 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
             }
             
             try FileManager.default.copyItem(at: location, to: destinationURL)
+            
+            // Verify file integrity using SHA256 hash
+            var expectedHash: String?
+            DispatchQueue.main.sync {
+                expectedHash = self.modelIndex[modelID].flatMap { self.availableModels[$0].sha256 }
+            }
+            try self.verifyFileIntegrity(at: destinationURL, expectedHash: expectedHash)
             
             DispatchQueue.main.async {
                 if let index = self.modelIndex[modelID] {
@@ -286,6 +323,7 @@ enum ModelDownloadError: LocalizedError {
     case modelNotFound
     case downloadFailed(String)
     case invalidURL
+    case hashMismatch(expected: String, actual: String)
     
     var errorDescription: String? {
         switch self {
@@ -295,6 +333,8 @@ enum ModelDownloadError: LocalizedError {
             return "Download failed: \(reason)"
         case .invalidURL:
             return "Invalid download URL"
+        case .hashMismatch(let expected, let actual):
+            return "File integrity check failed (expected \(expected.prefix(8))…, got \(actual.prefix(8))…)"
         }
     }
 }
