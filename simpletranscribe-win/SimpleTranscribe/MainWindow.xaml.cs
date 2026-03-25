@@ -29,8 +29,6 @@ public sealed partial class MainWindow : Window
         ModelDownloadPanel.CloseRequested += (_, _) => HideModelManager();
         ModelDownloadPanel.ModelSelected += (_, id) => _vm.SelectedModelId = id;
 
-        BannerButton.Click += (_, _) => ShowModelManager();
-
         // Subscribe to view model property changes
         _vm.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -112,6 +110,10 @@ public sealed partial class MainWindow : Window
 
     private void UpdateModelBanner()
     {
+        // Always detach both handlers before reconfiguring
+        BannerButton.Click -= OnBannerLoadModel;
+        BannerButton.Click -= OnBannerShowModelManager;
+
         if (_vm.IsLoadingModel)
         {
             ModelStatusBanner.Visibility = Visibility.Visible;
@@ -126,7 +128,6 @@ public sealed partial class MainWindow : Window
             BannerText.Text = "Model not loaded. Select a model or click Load.";
             BannerButton.Content = "Load Model";
             BannerButton.Visibility = Visibility.Visible;
-            BannerButton.Click -= OnBannerLoadModel;
             BannerButton.Click += OnBannerLoadModel;
         }
         else if (!_vm.ModelLoaded)
@@ -136,6 +137,7 @@ public sealed partial class MainWindow : Window
             BannerText.Text = "No models downloaded. Download a model to get started.";
             BannerButton.Content = "Download";
             BannerButton.Visibility = Visibility.Visible;
+            BannerButton.Click += OnBannerShowModelManager;
         }
         else
         {
@@ -143,9 +145,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void OnBannerLoadModel(object sender, RoutedEventArgs e)
+    private void OnBannerLoadModel(object sender, RoutedEventArgs e)
     {
-        await _vm.LoadModelAsync();
+        _ = LoadModelWithErrorHandling();
+    }
+
+    private void OnBannerShowModelManager(object sender, RoutedEventArgs e)
+    {
+        ShowModelManager();
+    }
+
+    private async Task LoadModelWithErrorHandling()
+    {
+        try { await _vm.LoadModelAsync(); }
+        catch (Exception ex) { _vm.ErrorMessage = $"Failed to load model: {ex.Message}"; }
     }
 
     private void UpdateErrorBanner()

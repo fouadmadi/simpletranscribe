@@ -22,6 +22,9 @@ public sealed partial class ModelDownloadPage : UserControl
 
     public void Initialize(ModelService modelService, string selectedModelId)
     {
+        // Unsubscribe from previous service to prevent handler accumulation
+        Detach();
+
         _modelService = modelService;
         _selectedModelId = selectedModelId;
         _modelService.ModelsChanged += RefreshList;

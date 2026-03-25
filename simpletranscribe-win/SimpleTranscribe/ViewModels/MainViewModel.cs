@@ -100,7 +100,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRecord));
 
         if (!string.IsNullOrEmpty(value) && _modelService.GetModel(value)?.IsAvailable == true)
-            _ = LoadModelAsync();
+            LoadModelInBackground();
     }
     partial void OnSelectedDeviceIdChanged(string? value) => SaveSetting("selectedDeviceId", value ?? "");
     partial void OnModelLoadedChanged(bool value) => OnPropertyChanged(nameof(CanRecord));
@@ -147,6 +147,15 @@ public partial class MainViewModel : ObservableObject
     {
         var firstDownloaded = _modelService.AvailableModels.FirstOrDefault(m => m.IsAvailable);
         SelectedModelId = firstDownloaded?.Id ?? "";
+    }
+
+    /// <summary>
+    /// Fire-and-forget wrapper that catches unobserved exceptions from LoadModelAsync.
+    /// </summary>
+    private async void LoadModelInBackground()
+    {
+        try { await LoadModelAsync(); }
+        catch (Exception ex) { ErrorMessage = $"Failed to load model: {ex.Message}"; }
     }
 
     // --- Recording ---
