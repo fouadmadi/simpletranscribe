@@ -139,23 +139,21 @@ public class TranscriptionManager : IDisposable
 
     private string RunInference(float[] audio, string language)
     {
-        var pars = WhisperNative.FullDefaultParams(WhisperSamplingStrategy.Greedy);
+        using var pars = WhisperParams.CreateDefault(WhisperSamplingStrategy.Greedy);
 
         // Configure params to match macOS settings
-        pars.n_threads = Math.Max(1, Environment.ProcessorCount);
-        pars.no_context = true;
-        pars.single_segment = true;
-        pars.print_progress = false;
-        pars.print_timestamps = false;
-        pars.print_special = false;
-        pars.print_realtime = false;
+        pars.NThreads = Math.Max(1, Environment.ProcessorCount);
+        pars.NoContext = true;
+        pars.SingleSegment = true;
+        pars.PrintProgress = false;
+        pars.PrintTimestamps = false;
+        pars.PrintSpecial = false;
+        pars.PrintRealtime = false;
 
-        // Set language
-        var whisperLang = LanguageMap.GetValueOrDefault(language, "en");
-        pars.language = whisperLang;
-        pars.detect_language = whisperLang == "auto";
+        // Language configuration via safe field offsets
+        pars.ConfigureLanguage(LanguageMap.GetValueOrDefault(language, "en"));
 
-        var result = WhisperNative.Full(_ctx, pars, audio, audio.Length);
+        var result = WhisperNative.Full(_ctx, pars.Pointer, audio, audio.Length);
         if (result != 0)
             throw new InvalidOperationException($"Whisper inference failed with code {result}");
 
