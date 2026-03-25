@@ -57,6 +57,10 @@ Manage models from the **Models** button in the toolbar.
 - **NSEvent** global/local monitors for hotkey detection
 - Sandboxed with entitlements for audio, network, and automation
 
+## Known issues
+
+- the app fails to transcribe when using the multilanguage model
+
 ## License
 
 MIT
