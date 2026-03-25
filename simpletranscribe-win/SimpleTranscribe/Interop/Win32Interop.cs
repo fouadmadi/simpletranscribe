@@ -84,7 +84,10 @@ internal struct INPUT
     public InputUnion u;
 }
 
-[StructLayout(LayoutKind.Explicit)]
+// The native INPUT union contains MOUSEINPUT (32 bytes on x64), KEYBDINPUT (24 bytes),
+// and HARDWAREINPUT (8 bytes). We must size the union to the largest member or
+// SendInput will fail with an incorrect cbSize.
+[StructLayout(LayoutKind.Explicit, Size = 32)]
 internal struct InputUnion
 {
     [FieldOffset(0)] public KEYBDINPUT ki;
