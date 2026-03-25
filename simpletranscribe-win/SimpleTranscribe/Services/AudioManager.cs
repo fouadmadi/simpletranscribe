@@ -10,6 +10,7 @@ namespace SimpleTranscribe.Services;
 public class AudioManager : IDisposable
 {
     private WasapiCapture? _capture;
+    private MMDevice? _captureDevice;
     private WaveFormat? _captureFormat;
     private bool _isRecording;
 
@@ -38,7 +39,14 @@ public class AudioManager : IDisposable
             var endpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             foreach (var device in endpoints)
             {
-                devices.Add(new AudioDeviceInfo(device.ID, device.FriendlyName));
+                try
+                {
+                    devices.Add(new AudioDeviceInfo(device.ID, device.FriendlyName));
+                }
+                finally
+                {
+                    device.Dispose();
+                }
             }
         }
         catch { /* Device enumeration may fail if no audio subsystem */ }
@@ -54,7 +62,7 @@ public class AudioManager : IDisposable
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
+            using var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
             return device.ID;
         }
         catch
@@ -75,11 +83,11 @@ public class AudioManager : IDisposable
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            var device = deviceId != null
+            _captureDevice = deviceId != null
                 ? enumerator.GetDevice(deviceId)
                 : enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
 
-            _capture = new WasapiCapture(device)
+            _capture = new WasapiCapture(_captureDevice)
             {
                 ShareMode = AudioClientShareMode.Shared
             };
@@ -93,6 +101,10 @@ public class AudioManager : IDisposable
         catch (Exception ex)
         {
             _isRecording = false;
+            _capture?.Dispose();
+            _capture = null;
+            _captureDevice?.Dispose();
+            _captureDevice = null;
             OnError?.Invoke(ex);
         }
     }
@@ -116,6 +128,9 @@ public class AudioManager : IDisposable
         _capture.RecordingStopped -= OnRecordingStopped;
         _capture.Dispose();
         _capture = null;
+
+        _captureDevice?.Dispose();
+        _captureDevice = null;
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
