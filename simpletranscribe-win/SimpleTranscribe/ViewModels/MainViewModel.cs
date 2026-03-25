@@ -11,7 +11,7 @@ namespace SimpleTranscribe.ViewModels;
 /// MVVMTK0045 suppressed: unpackaged app doesn't need WinRT AOT marshalling.
 /// </summary>
 #pragma warning disable MVVMTK0045
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly AudioManager _audioManager = new();
     private readonly TranscriptionManager _transcriptionManager = new();
@@ -314,8 +314,15 @@ public partial class MainViewModel : ObservableObject
 
     public void Cleanup()
     {
+        Dispose();
+    }
+
+    public void Dispose()
+    {
+        _modelService.ModelsChanged -= RefreshDownloadedModels;
         _hotKeyManager.Dispose();
         _audioManager.Dispose();
         _transcriptionManager.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

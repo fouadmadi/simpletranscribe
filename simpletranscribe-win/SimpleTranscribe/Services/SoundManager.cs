@@ -9,6 +9,9 @@ public static class SoundManager
     private static readonly string SoundsDir = Path.Combine(
         AppContext.BaseDirectory, "Assets", "Sounds");
 
+    // Cache SoundPlayer instances to avoid creating and leaking one per call
+    private static readonly Dictionary<string, System.Media.SoundPlayer> _players = new();
+
     /// <summary>
     /// Play when recording starts. Equivalent to macOS "Tink" sound.
     /// </summary>
@@ -35,8 +38,12 @@ public static class SoundManager
             if (!File.Exists(path))
                 return;
 
-            // Use System.Media.SoundPlayer for simple synchronous-capable playback
-            var player = new System.Media.SoundPlayer(path);
+            if (!_players.TryGetValue(filename, out var player))
+            {
+                player = new System.Media.SoundPlayer(path);
+                _players[filename] = player;
+            }
+
             player.Play(); // Asynchronous playback — does not block UI
         }
         catch

@@ -148,7 +148,7 @@ public class ModelService
             fileStream.Close();
 
             // Verify SHA256 hash
-            VerifyFileIntegrity(tempPath, model.Sha256);
+            await VerifyFileIntegrityAsync(tempPath, model.Sha256);
 
             // Move temp file to final location
             if (File.Exists(destPath))
@@ -175,7 +175,8 @@ public class ModelService
         }
         finally
         {
-            _activeCancellations.Remove(modelId);
+            if (_activeCancellations.Remove(modelId, out var removedCts))
+                removedCts.Dispose();
             ModelsChanged?.Invoke();
         }
     }
@@ -231,15 +232,21 @@ public class ModelService
 
     // --- Private helpers ---
 
-    private void VerifyFileIntegrity(string filePath, string? expectedHash)
+    private async Task VerifyFileIntegrityAsync(string filePath, string? expectedHash)
     {
         if (string.IsNullOrEmpty(expectedHash))
             return;
 
         using var sha256 = SHA256.Create();
-        using var stream = File.OpenRead(filePath);
-        var hash = sha256.ComputeHash(stream);
-        var actualHash = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(buffer)) > 0)
+        {
+            sha256.TransformBlock(buffer, 0, read, null, 0);
+        }
+        sha256.TransformFinalBlock([], 0, 0);
+        var actualHash = BitConverter.ToString(sha256.Hash!).Replace("-", "").ToLowerInvariant();
 
         if (actualHash != expectedHash)
         {
