@@ -29,7 +29,7 @@ public class ModelInfo
     /// </summary>
     public bool IsAvailable => Status == ModelStatus.Downloaded && DownloadedPath != null;
 
-    private static string FormatBytes(long bytes)
+    public static string FormatBytes(long bytes)
     {
         if (bytes >= 1_073_741_824)
             return $"{bytes / 1_073_741_824.0:F1} GB";
