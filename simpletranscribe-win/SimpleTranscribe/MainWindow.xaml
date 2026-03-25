@@ -3,13 +3,48 @@
     x:Class="SimpleTranscribe.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:SimpleTranscribe.Views"
     Title="SimpleTranscribe">
 
-    <Grid>
-        <TextBlock
-            Text="SimpleTranscribe — Windows"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Style="{StaticResource TitleTextBlockStyle}" />
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+        <!-- Recording controls -->
+        <views:RecordingControlsPanel x:Name="RecordingControls" Grid.Row="0" />
+
+        <Border Grid.Row="1" Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- Settings (mic, model, language pickers) -->
+        <views:SettingsPanel x:Name="Settings" Grid.Row="2" />
+
+        <Border Grid.Row="3" Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- Transcript results -->
+        <views:TranscriptResultsPanel x:Name="TranscriptResults" Grid.Row="4" />
+
+        <!-- Model status banner -->
+        <Border x:Name="ModelStatusBanner" Grid.Row="5" Visibility="Collapsed"
+                Padding="16" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <FontIcon x:Name="BannerIcon" Glyph="&#xE946;" FontSize="16"
+                          Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                <TextBlock x:Name="BannerText" Grid.Column="1" Margin="8,0" FontSize="12"
+                           VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button x:Name="BannerButton" Grid.Column="2" FontSize="12"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Visibility="Collapsed" />
+            </Grid>
+        </Border>
+
+        <!-- Error banner -->
+        <Border x:Name="ErrorBanner" Grid.Row="6" Visibility="Collapsed"
+                Padding="16">
+            <TextBlock x:Name="ErrorText" FontSize="12" Foreground="Red" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Model download overlay -->
+        <Border x:Name="ModelOverlay" Grid.Row="0" Grid.RowSpan="7" Visibility="Collapsed"
+                Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}">
+            <views:ModelDownloadPage x:Name="ModelDownloadPanel" />
+        </Border>
     </Grid>
 </Window>
