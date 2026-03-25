@@ -263,53 +263,61 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // --- Settings helpers ---
 
-    private static string GetSetting(string key, string defaultValue = "")
+    private static readonly object _settingsLock = new();
+    private static Dictionary<string, string>? _settingsCache;
+
+    private static string SettingsFilePath
+    {
+        get
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "SimpleTranscribe");
+            return Path.Combine(dir, "settings.json");
+        }
+    }
+
+    private static Dictionary<string, string> LoadSettingsFromDisk()
     {
         try
         {
-            var settingsDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "SimpleTranscribe");
-            var settingsFile = Path.Combine(settingsDir, "settings.json");
+            var path = SettingsFilePath;
+            if (!File.Exists(path))
+                return new();
 
-            if (!File.Exists(settingsFile))
-                return defaultValue;
-
-            var json = File.ReadAllText(settingsFile);
-            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-            return dict?.GetValueOrDefault(key, defaultValue) ?? defaultValue;
+            var json = File.ReadAllText(path);
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
         }
         catch
         {
-            return defaultValue;
+            return new();
+        }
+    }
+
+    private static string GetSetting(string key, string defaultValue = "")
+    {
+        lock (_settingsLock)
+        {
+            _settingsCache ??= LoadSettingsFromDisk();
+            return _settingsCache.GetValueOrDefault(key, defaultValue);
         }
     }
 
     private static void SaveSetting(string key, string value)
     {
-        try
+        lock (_settingsLock)
         {
-            var settingsDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "SimpleTranscribe");
-            Directory.CreateDirectory(settingsDir);
-            var settingsFile = Path.Combine(settingsDir, "settings.json");
+            _settingsCache ??= LoadSettingsFromDisk();
+            _settingsCache[key] = value;
 
-            Dictionary<string, string> dict;
-            if (File.Exists(settingsFile))
+            try
             {
-                var json = File.ReadAllText(settingsFile);
-                dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+                var path = SettingsFilePath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(_settingsCache));
             }
-            else
-            {
-                dict = new();
-            }
-
-            dict[key] = value;
-            File.WriteAllText(settingsFile, System.Text.Json.JsonSerializer.Serialize(dict));
+            catch { /* Best effort settings persistence */ }
         }
-        catch { /* Best effort settings persistence */ }
     }
 
     public void Cleanup()
