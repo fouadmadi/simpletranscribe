@@ -1,3 +1,4 @@
+using Xunit;
 using SimpleTranscribe.Models;
 using SimpleTranscribe.Services;
 

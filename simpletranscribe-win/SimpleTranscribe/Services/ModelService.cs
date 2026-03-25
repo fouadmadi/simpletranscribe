@@ -239,7 +239,7 @@ public class ModelService
         using var sha256 = SHA256.Create();
         using var stream = File.OpenRead(filePath);
         var hash = sha256.ComputeHash(stream);
-        var actualHash = Convert.ToHexStringLower(hash);
+        var actualHash = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
 
         if (actualHash != expectedHash)
         {

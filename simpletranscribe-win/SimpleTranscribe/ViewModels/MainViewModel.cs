@@ -8,7 +8,9 @@ namespace SimpleTranscribe.ViewModels;
 /// <summary>
 /// Main view model for the application. Port of macOS AppModel.swift + ContentView logic.
 /// Uses CommunityToolkit.Mvvm source generators for INotifyPropertyChanged.
+/// MVVMTK0045 suppressed: unpackaged app doesn't need WinRT AOT marshalling.
 /// </summary>
+#pragma warning disable MVVMTK0045
 public partial class MainViewModel : ObservableObject
 {
     private readonly AudioManager _audioManager = new();

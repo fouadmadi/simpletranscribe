@@ -6,50 +6,42 @@ namespace SimpleTranscribe.Interop;
 /// P/Invoke bindings for whisper.cpp native library.
 /// Expects whisper.dll in the Native/ directory or application root.
 /// Build whisper.cpp with: cmake -B build -DBUILD_SHARED_LIBS=ON && cmake --build build --config Release
+/// Uses DllImport (not LibraryImport) because the struct parameters contain
+/// non-blittable fields that the source generator cannot marshal.
 /// </summary>
-internal static partial class WhisperNative
+internal static class WhisperNative
 {
     private const string LibName = "whisper";
 
-    // --- Context lifecycle ---
-
-    [LibraryImport(LibName, EntryPoint = "whisper_init_from_file_with_params")]
-    internal static partial nint InitFromFileWithParams(
+    [DllImport(LibName, EntryPoint = "whisper_init_from_file_with_params", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern nint InitFromFileWithParams(
         [MarshalAs(UnmanagedType.LPStr)] string pathModel,
         WhisperContextParams cparams);
 
-    [LibraryImport(LibName, EntryPoint = "whisper_init_from_file")]
-    internal static partial nint InitFromFile(
+    [DllImport(LibName, EntryPoint = "whisper_init_from_file", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern nint InitFromFile(
         [MarshalAs(UnmanagedType.LPStr)] string pathModel);
 
-    [LibraryImport(LibName, EntryPoint = "whisper_free")]
-    internal static partial void Free(nint ctx);
+    [DllImport(LibName, EntryPoint = "whisper_free", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void Free(nint ctx);
 
-    // --- Full inference ---
+    [DllImport(LibName, EntryPoint = "whisper_full", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern int Full(nint ctx, WhisperFullParams pars, float[] samples, int nSamples);
 
-    [LibraryImport(LibName, EntryPoint = "whisper_full")]
-    internal static partial int Full(nint ctx, WhisperFullParams pars, float[] samples, int nSamples);
+    [DllImport(LibName, EntryPoint = "whisper_full_n_segments", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern int FullNSegments(nint ctx);
 
-    [LibraryImport(LibName, EntryPoint = "whisper_full_n_segments")]
-    internal static partial int FullNSegments(nint ctx);
+    [DllImport(LibName, EntryPoint = "whisper_full_get_segment_text", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern nint FullGetSegmentText(nint ctx, int iSegment);
 
-    [LibraryImport(LibName, EntryPoint = "whisper_full_get_segment_text")]
-    internal static partial nint FullGetSegmentText(nint ctx, int iSegment);
+    [DllImport(LibName, EntryPoint = "whisper_full_default_params", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern WhisperFullParams FullDefaultParams(int strategy);
 
-    // --- Default params ---
+    [DllImport(LibName, EntryPoint = "whisper_context_default_params", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern WhisperContextParams ContextDefaultParams();
 
-    [LibraryImport(LibName, EntryPoint = "whisper_full_default_params")]
-    internal static partial WhisperFullParams FullDefaultParams(int strategy);
-
-    // --- Context params ---
-
-    [LibraryImport(LibName, EntryPoint = "whisper_context_default_params")]
-    internal static partial WhisperContextParams ContextDefaultParams();
-
-    // --- System info ---
-
-    [LibraryImport(LibName, EntryPoint = "whisper_print_system_info")]
-    internal static partial nint PrintSystemInfo();
+    [DllImport(LibName, EntryPoint = "whisper_print_system_info", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern nint PrintSystemInfo();
 }
 
 /// <summary>

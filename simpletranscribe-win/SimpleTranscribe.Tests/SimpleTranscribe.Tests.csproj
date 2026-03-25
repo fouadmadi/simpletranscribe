@@ -8,6 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <WindowsSdkPackageVersion>10.0.22621.47</WindowsSdkPackageVersion>
   </PropertyGroup>
 
   <ItemGroup>

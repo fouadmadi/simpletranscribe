@@ -1,3 +1,4 @@
+using Xunit;
 using SimpleTranscribe.Services;
 
 namespace SimpleTranscribe.Tests;
