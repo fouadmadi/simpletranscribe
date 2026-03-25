@@ -6,12 +6,14 @@ namespace SimpleTranscribe.Services;
 /// <summary>
 /// Manages Whisper model loading, audio accumulation, and transcription.
 /// Port of macOS TranscriptionManager.swift using whisper.cpp P/Invoke.
+/// Thread-safe: all access to the native whisper context is synchronized via _ctxLock.
 /// </summary>
 public class TranscriptionManager : IDisposable
 {
     private nint _ctx;
     private readonly List<float> _accumulatedAudio = new();
     private readonly SemaphoreSlim _audioLock = new(1, 1);
+    private readonly SemaphoreSlim _ctxLock = new(1, 1);
     private bool _isTranscribing;
     private bool _disposed;
 
@@ -38,28 +40,37 @@ public class TranscriptionManager : IDisposable
         }
     }
 
-    public bool IsModelLoaded => _ctx != nint.Zero;
+    public bool IsModelLoaded => Volatile.Read(ref _ctx) != nint.Zero;
 
     public event Action<bool>? IsTranscribingChanged;
 
     /// <summary>
     /// Load a Whisper model from the given file path.
+    /// Waits for any in-flight inference to complete before swapping the context.
     /// </summary>
     public async Task LoadModelAsync(string modelPath)
     {
         if (!File.Exists(modelPath))
             throw new FileNotFoundException("Model file not found", modelPath);
 
-        // Free existing model
-        FreeModel();
+        // Acquire context lock to prevent loading while inference is running
+        await _ctxLock.WaitAsync();
+        try
+        {
+            FreeModelUnsafe();
 
-        // Load on a background thread (heavy I/O)
-        var ctx = await Task.Run(() => WhisperNative.InitFromFile(modelPath));
+            // Load on a background thread (heavy I/O)
+            var ctx = await Task.Run(() => WhisperNative.InitFromFile(modelPath));
 
-        if (ctx == nint.Zero)
-            throw new InvalidOperationException($"Failed to load model from {Path.GetFileName(modelPath)}");
+            if (ctx == nint.Zero)
+                throw new InvalidOperationException($"Failed to load model from {Path.GetFileName(modelPath)}");
 
-        _ctx = ctx;
+            Volatile.Write(ref _ctx, ctx);
+        }
+        finally
+        {
+            _ctxLock.Release();
+        }
     }
 
     /// <summary>
@@ -93,7 +104,10 @@ public class TranscriptionManager : IDisposable
             if (remaining > 0)
             {
                 var samplesToAdd = Math.Min(buffer.Length, remaining);
-                _accumulatedAudio.AddRange(buffer.AsSpan(0, samplesToAdd).ToArray());
+                if (samplesToAdd == buffer.Length)
+                    _accumulatedAudio.AddRange(buffer);
+                else
+                    _accumulatedAudio.AddRange(buffer[..samplesToAdd]);
             }
         }
         finally
@@ -109,7 +123,7 @@ public class TranscriptionManager : IDisposable
     {
         try
         {
-            if (_ctx == nint.Zero)
+            if (Volatile.Read(ref _ctx) == nint.Zero)
                 throw new InvalidOperationException("Model not loaded");
 
             // Take a snapshot of accumulated audio
@@ -127,8 +141,22 @@ public class TranscriptionManager : IDisposable
             if (audioSnapshot.Length == 0)
                 return "";
 
-            // Run whisper inference on background thread
-            var text = await Task.Run(() => RunInference(audioSnapshot, language));
+            // Run whisper inference on background thread, holding context lock
+            var text = await Task.Run(async () =>
+            {
+                await _ctxLock.WaitAsync();
+                try
+                {
+                    var ctx = Volatile.Read(ref _ctx);
+                    if (ctx == nint.Zero)
+                        throw new InvalidOperationException("Model was unloaded during inference");
+                    return RunInference(ctx, audioSnapshot, language);
+                }
+                finally
+                {
+                    _ctxLock.Release();
+                }
+            });
             return text.Trim();
         }
         finally
@@ -137,7 +165,7 @@ public class TranscriptionManager : IDisposable
         }
     }
 
-    private string RunInference(float[] audio, string language)
+    private static string RunInference(nint ctx, float[] audio, string language)
     {
         using var pars = WhisperParams.CreateDefault(WhisperSamplingStrategy.Greedy);
 
@@ -153,16 +181,16 @@ public class TranscriptionManager : IDisposable
         // Language configuration via safe field offsets
         pars.ConfigureLanguage(LanguageMap.GetValueOrDefault(language, "en"));
 
-        var result = WhisperNative.Full(_ctx, pars.Pointer, audio, audio.Length);
+        var result = WhisperNative.Full(ctx, pars.Pointer, audio, audio.Length);
         if (result != 0)
             throw new InvalidOperationException($"Whisper inference failed with code {result}");
 
-        var segments = WhisperNative.FullNSegments(_ctx);
+        var segments = WhisperNative.FullNSegments(ctx);
         var texts = new List<string>();
 
         for (int i = 0; i < segments; i++)
         {
-            var segText = WhisperHelpers.GetSegmentText(_ctx, i);
+            var segText = WhisperHelpers.GetSegmentText(ctx, i);
             if (!string.IsNullOrWhiteSpace(segText))
                 texts.Add(segText);
         }
@@ -170,12 +198,14 @@ public class TranscriptionManager : IDisposable
         return string.Join(" ", texts);
     }
 
-    private void FreeModel()
+    /// <summary>Free the native context. Caller must hold _ctxLock.</summary>
+    private void FreeModelUnsafe()
     {
-        if (_ctx != nint.Zero)
+        var ctx = Volatile.Read(ref _ctx);
+        if (ctx != nint.Zero)
         {
-            WhisperNative.Free(_ctx);
-            _ctx = nint.Zero;
+            WhisperNative.Free(ctx);
+            Volatile.Write(ref _ctx, nint.Zero);
         }
     }
 
@@ -183,8 +213,20 @@ public class TranscriptionManager : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        FreeModel();
+
+        // Acquire lock to ensure no in-flight inference before freeing
+        _ctxLock.Wait();
+        try
+        {
+            FreeModelUnsafe();
+        }
+        finally
+        {
+            _ctxLock.Release();
+        }
+
         _audioLock.Dispose();
+        _ctxLock.Dispose();
         GC.SuppressFinalize(this);
     }
 }
