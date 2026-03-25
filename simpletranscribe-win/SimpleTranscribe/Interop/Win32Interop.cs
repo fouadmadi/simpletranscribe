@@ -59,6 +59,9 @@ internal static partial class Win32Interop
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GlobalUnlock(nint hMem);
 
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    internal static partial nint GlobalFree(nint hMem);
+
     // Constants
     internal const int WH_KEYBOARD_LL = 13;
     internal const int WM_KEYDOWN = 0x0100;

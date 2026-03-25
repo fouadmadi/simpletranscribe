@@ -17,7 +17,8 @@ public static class PasteService
     /// </summary>
     public static void CopyAndPaste(string text)
     {
-        SetClipboardText(text);
+        if (!SetClipboardText(text))
+            return;
 
         // Small delay to ensure clipboard is populated before simulating paste
         Task.Delay(150).ContinueWith(_ => SimulateCtrlV(), TaskScheduler.Default);
@@ -33,11 +34,12 @@ public static class PasteService
 
     /// <summary>
     /// Set clipboard text using Win32 API (works from any thread).
+    /// Returns true if text was successfully placed on the clipboard.
     /// </summary>
-    private static void SetClipboardText(string text)
+    private static bool SetClipboardText(string text)
     {
         if (!Win32Interop.OpenClipboard(nint.Zero))
-            return;
+            return false;
 
         try
         {
@@ -46,17 +48,29 @@ public static class PasteService
             var bytes = (text.Length + 1) * 2; // UTF-16 + null terminator
             var hGlobal = Win32Interop.GlobalAlloc(Win32Interop.GMEM_MOVEABLE, (nuint)bytes);
             if (hGlobal == nint.Zero)
-                return;
+                return false;
 
             var locked = Win32Interop.GlobalLock(hGlobal);
-            if (locked != nint.Zero)
+            if (locked == nint.Zero)
             {
-                Marshal.Copy(text.ToCharArray(), 0, locked, text.Length);
-                // Null terminator is already zeroed by GlobalAlloc
-                Win32Interop.GlobalUnlock(hGlobal);
+                // GlobalLock failed — free the memory and bail out
+                Win32Interop.GlobalFree(hGlobal);
+                return false;
             }
 
-            Win32Interop.SetClipboardData(Win32Interop.CF_UNICODETEXT, hGlobal);
+            Marshal.Copy(text.ToCharArray(), 0, locked, text.Length);
+            // Null terminator is already zeroed by GlobalAlloc
+            Win32Interop.GlobalUnlock(hGlobal);
+
+            // SetClipboardData takes ownership of hGlobal on success.
+            // On failure, we must free it ourselves.
+            if (Win32Interop.SetClipboardData(Win32Interop.CF_UNICODETEXT, hGlobal) == nint.Zero)
+            {
+                Win32Interop.GlobalFree(hGlobal);
+                return false;
+            }
+
+            return true;
         }
         finally
         {
@@ -103,6 +117,11 @@ public static class PasteService
             },
         };
 
-        Win32Interop.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        var sent = Win32Interop.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        if (sent != inputs.Length)
+        {
+            // SendInput failed (e.g., UIPI blocked input to an elevated window).
+            // Text remains on clipboard for manual Ctrl+V.
+        }
     }
 }
