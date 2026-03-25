@@ -10,6 +10,8 @@ namespace SimpleTranscribe.Services;
 /// </summary>
 public class TranscriptionManager : IDisposable
 {
+    private static readonly AppLogger Log = AppLogger.Instance;
+
     private nint _ctx;
     private readonly List<float> _accumulatedAudio = new();
     private readonly SemaphoreSlim _audioLock = new(1, 1);
@@ -53,19 +55,19 @@ public class TranscriptionManager : IDisposable
         if (!File.Exists(modelPath))
             throw new FileNotFoundException("Model file not found", modelPath);
 
-        // Acquire context lock to prevent loading while inference is running
+        Log.Info("Transcription", $"Loading model: {Path.GetFileName(modelPath)}");
+
         await _ctxLock.WaitAsync();
         try
         {
             FreeModelUnsafe();
-
-            // Load on a background thread (heavy I/O)
             var ctx = await Task.Run(() => WhisperNative.InitFromFile(modelPath));
 
             if (ctx == nint.Zero)
                 throw new InvalidOperationException($"Failed to load model from {Path.GetFileName(modelPath)}");
 
             Volatile.Write(ref _ctx, ctx);
+            Log.Info("Transcription", "Model loaded successfully");
         }
         finally
         {
@@ -140,6 +142,8 @@ public class TranscriptionManager : IDisposable
 
             if (audioSnapshot.Length == 0)
                 return "";
+
+            Log.Info("Transcription", $"Processing {audioSnapshot.Length} samples ({audioSnapshot.Length / 16000.0:F1}s)");
 
             // Run whisper inference on background thread, holding context lock
             var text = await Task.Run(async () =>

@@ -9,6 +9,8 @@ namespace SimpleTranscribe.Services;
 /// </summary>
 public class ModelService
 {
+    private static readonly AppLogger Log = AppLogger.Instance;
+
     private readonly string _modelsDirectory;
     private readonly HttpClient _httpClient;
     private readonly Dictionary<string, CancellationTokenSource> _activeCancellations = new();
@@ -107,6 +109,7 @@ public class ModelService
             model.Status = ModelStatus.Downloading;
             model.DownloadProgress = 0;
             ModelsChanged?.Invoke();
+            Log.Info("ModelService", $"Starting download: {modelId}");
 
             var destPath = Path.Combine(_modelsDirectory, modelId + ".bin");
             var tempPath = destPath + ".tmp";
@@ -159,18 +162,21 @@ public class ModelService
             model.DownloadedPath = destPath;
             model.DownloadProgress = 1.0;
             progress?.Report(1.0);
+            Log.Info("ModelService", $"Download complete: {modelId}");
         }
         catch (OperationCanceledException)
         {
             model.Status = ModelStatus.NotDownloaded;
             model.DownloadProgress = 0;
             CleanupTempFile(modelId);
+            Log.Info("ModelService", $"Download cancelled: {modelId}");
         }
         catch (Exception ex)
         {
             model.Status = ModelStatus.Failed;
             model.DownloadProgress = 0;
             CleanupTempFile(modelId);
+            Log.Error("ModelService", $"Download failed: {modelId}", ex);
             throw new ModelDownloadException($"Download failed: {ex.Message}", ex);
         }
         finally

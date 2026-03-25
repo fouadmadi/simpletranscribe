@@ -9,6 +9,8 @@ namespace SimpleTranscribe.Services;
 /// </summary>
 public class AudioManager : IDisposable
 {
+    private static readonly AppLogger Log = AppLogger.Instance;
+
     private WasapiCapture? _capture;
     private MMDevice? _captureDevice;
     private WaveFormat? _captureFormat;
@@ -97,6 +99,7 @@ public class AudioManager : IDisposable
             _capture.RecordingStopped += OnRecordingStopped;
             _capture.StartRecording();
             _isRecording = true;
+            Log.Info("Audio", $"Recording started (device={_captureDevice?.FriendlyName}, format={_captureFormat})");
         }
         catch (Exception ex)
         {
@@ -105,6 +108,7 @@ public class AudioManager : IDisposable
             _capture = null;
             _captureDevice?.Dispose();
             _captureDevice = null;
+            Log.Error("Audio", "Failed to start recording", ex);
             OnError?.Invoke(ex);
         }
     }

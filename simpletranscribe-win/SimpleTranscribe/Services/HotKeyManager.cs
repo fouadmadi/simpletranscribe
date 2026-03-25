@@ -11,6 +11,8 @@ namespace SimpleTranscribe.Services;
 /// </summary>
 public class HotKeyManager : IDisposable
 {
+    private static readonly AppLogger Log = AppLogger.Instance;
+
     private nint _hookId;
     private Win32Interop.LowLevelKeyboardProc? _hookProc;
     private bool _isCtrlHeld;
@@ -54,6 +56,8 @@ public class HotKeyManager : IDisposable
             _hookProc,
             moduleHandle,
             0);
+
+        Log.Info("HotKey", _hookId != nint.Zero ? "Keyboard hook installed" : "Failed to install keyboard hook");
     }
 
     private nint HookCallback(int nCode, nint wParam, nint lParam)
