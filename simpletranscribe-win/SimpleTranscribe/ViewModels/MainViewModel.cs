@@ -17,6 +17,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly TranscriptionManager _transcriptionManager = new();
     private readonly HotKeyManager _hotKeyManager = new();
     private readonly ModelService _modelService = new();
+    private AudioDeviceNotifier? _deviceNotifier;
+    private SynchronizationContext? _syncContext;
 
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isProcessing;
@@ -30,6 +32,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _selectedLanguage;
     [ObservableProperty] private string _selectedModelId;
     [ObservableProperty] private string? _selectedDeviceId;
+    [ObservableProperty] private bool _useSystemDefault = true;
+    [ObservableProperty] private string _deviceSwitchMessage = "";
 
     [ObservableProperty] private List<AudioDeviceInfo> _availableDevices = new();
     [ObservableProperty] private List<ModelInfo> _downloadedModels = new();
@@ -46,6 +50,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _selectedLanguage = GetSetting("language", "en");
         _selectedModelId = GetSetting("selectedModelId", "");
         _selectedDeviceId = GetSetting("selectedDeviceId");
+        _useSystemDefault = GetSetting("useSystemDefault", "True") == "True";
 
         // Wire up audio buffer relay
         _audioManager.OnBufferReceived += buffer =>
@@ -80,6 +85,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task SetupAsync()
     {
+        _syncContext = SynchronizationContext.Current;
+
+        _deviceNotifier = new AudioDeviceNotifier();
+        _deviceNotifier.DevicesChanged += HandleDeviceListChanged;
+        _deviceNotifier.DefaultDeviceChanged += HandleDefaultDeviceChanged;
+
         _hotKeyManager.Setup();
         RefreshDevices();
 
@@ -104,6 +115,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             LoadModelInBackground();
     }
     partial void OnSelectedDeviceIdChanged(string? value) => SaveSetting("selectedDeviceId", value ?? "");
+    partial void OnUseSystemDefaultChanged(bool value) => SaveSetting("useSystemDefault", value.ToString());
     partial void OnModelLoadedChanged(bool value) => OnPropertyChanged(nameof(CanRecord));
 
     // --- Model management ---
@@ -252,6 +264,91 @@ public partial class MainViewModel : ObservableObject, IDisposable
             SelectedDeviceId = AudioManager.GetDefaultDeviceId() ?? AvailableDevices.FirstOrDefault()?.Id;
     }
 
+    private void HandleDeviceListChanged()
+    {
+        void DoWork()
+        {
+            RefreshDevices();
+
+            if (SelectedDeviceId != null && AvailableDevices.Any(d => d.Id == SelectedDeviceId))
+                return;
+
+            // Current device is gone — switch to system default
+            SelectedDeviceId = AudioManager.GetDefaultDeviceId() ?? AvailableDevices.FirstOrDefault()?.Id;
+            var deviceName = AvailableDevices.FirstOrDefault(d => d.Id == SelectedDeviceId)?.Name ?? "default";
+            DeviceSwitchMessage = $"Switched to {deviceName} (device removed)";
+            ClearDeviceSwitchMessageAfterDelay();
+
+            RestartRecordingOnNewDevice();
+        }
+
+        if (_syncContext != null)
+            _syncContext.Post(_ => DoWork(), null);
+        else
+            DoWork();
+    }
+
+    private void HandleDefaultDeviceChanged(string newDeviceId)
+    {
+        void DoWork()
+        {
+            RefreshDevices();
+
+            if (UseSystemDefault)
+            {
+                SelectedDeviceId = newDeviceId;
+                var deviceName = AvailableDevices.FirstOrDefault(d => d.Id == newDeviceId)?.Name ?? "default";
+                DeviceSwitchMessage = $"Switched to {deviceName}";
+                ClearDeviceSwitchMessageAfterDelay();
+                RestartRecordingOnNewDevice();
+            }
+            else if (SelectedDeviceId != null && !AvailableDevices.Any(d => d.Id == SelectedDeviceId))
+            {
+                // Device-gone is handled by HandleDeviceListChanged — no action needed here.
+            }
+        }
+
+        if (_syncContext != null)
+            _syncContext.Post(_ => DoWork(), null);
+        else
+            DoWork();
+    }
+
+    private void RestartRecordingOnNewDevice()
+    {
+        if (!IsRecording) return;
+
+        // Stop only the audio capture — do NOT trigger transcription
+        _audioManager.StopRecording();
+
+        // TranscriptionManager's accumulated audio is preserved
+
+        try
+        {
+            _audioManager.StartRecording(SelectedDeviceId);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to switch microphone: {ex.Message}";
+            SoundManager.PlayError();
+        }
+    }
+
+    private CancellationTokenSource? _switchMessageCts;
+
+    private async void ClearDeviceSwitchMessageAfterDelay()
+    {
+        try
+        {
+            _switchMessageCts?.Cancel();
+            _switchMessageCts = new CancellationTokenSource();
+            var token = _switchMessageCts.Token;
+            await Task.Delay(3000, token);
+            DeviceSwitchMessage = "";
+        }
+        catch { /* Timer cancelled or app shutting down */ }
+    }
+
     private void RefreshDownloadedModels()
     {
         DownloadedModels = _modelService.AvailableModels.Where(m => m.IsAvailable).ToList();
@@ -333,6 +430,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (_deviceNotifier != null)
+        {
+            _deviceNotifier.DevicesChanged -= HandleDeviceListChanged;
+            _deviceNotifier.DefaultDeviceChanged -= HandleDefaultDeviceChanged;
+            _deviceNotifier.Dispose();
+            _deviceNotifier = null;
+        }
+
         _modelService.ModelsChanged -= RefreshDownloadedModels;
         _hotKeyManager.Dispose();
         _audioManager.Dispose();

@@ -164,6 +164,7 @@ public class AudioManager : IDisposable
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
     {
+        _isRecording = false;
         if (e.Exception != null)
             OnError?.Invoke(e.Exception);
     }

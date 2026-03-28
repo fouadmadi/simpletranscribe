@@ -25,6 +25,7 @@ public sealed partial class MainWindow : Window
         Settings.DeviceChanged += (_, id) => _vm.SelectedDeviceId = id;
         Settings.ModelChanged += (_, id) => _vm.SelectedModelId = id;
         Settings.LanguageChanged += (_, lang) => _vm.SelectedLanguage = lang;
+        Settings.UseSystemDefaultChanged += (_, value) => _vm.UseSystemDefault = value;
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
@@ -86,6 +87,14 @@ public sealed partial class MainWindow : Window
                     Settings.UpdateDevices(_vm.AvailableDevices, _vm.SelectedDeviceId);
                     break;
 
+                case nameof(MainViewModel.DeviceSwitchMessage):
+                    Settings.UpdateDeviceSwitchMessage(_vm.DeviceSwitchMessage);
+                    break;
+
+                case nameof(MainViewModel.UseSystemDefault):
+                    Settings.UpdateUseSystemDefault(_vm.UseSystemDefault);
+                    break;
+
                 case nameof(MainViewModel.DownloadedModels):
                     Settings.UpdateModels(_vm.DownloadedModels, _vm.SelectedModelId);
                     UpdateModelBanner();
@@ -102,6 +111,7 @@ public sealed partial class MainWindow : Window
     {
         UpdateRecordingControls();
         Settings.UpdateDevices(_vm.AvailableDevices, _vm.SelectedDeviceId);
+        Settings.UpdateUseSystemDefault(_vm.UseSystemDefault);
         Settings.UpdateModels(_vm.DownloadedModels, _vm.SelectedModelId);
         Settings.UpdateLanguage(_vm.SelectedLanguage);
         TranscriptResults.Text = _vm.TranscribedText;

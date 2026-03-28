@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import AVFoundation
+import CoreAudio
 import ApplicationServices
 import os
 
@@ -40,6 +41,18 @@ class AppModel {
     // Feedback properties
     var showTranscriptionStarted: Bool = false
     var overlayState: OverlayState = .idle
+
+    // Device listener
+    private var deviceListener: AudioDeviceListener?
+    private var deviceSwitchClearWorkItem: DispatchWorkItem?
+
+    /// When true, always follow OS default mic. When false, only switch if selected device disappears.
+    var useSystemDefault: Bool = true {
+        didSet { UserDefaults.standard.set(useSystemDefault, forKey: "useSystemDefault") }
+    }
+
+    /// Transient status message for device switches (e.g. "Switched to: AirPods Pro")
+    var deviceSwitchMessage: String = ""
 
     // Properties moved from ContentView
     var modelLoaded = false
@@ -99,6 +112,17 @@ class AppModel {
                 self.availableInputDevices = devices
                 if self.selectedInputDevice == nil {
                     self.selectedInputDevice = defaultDevice
+                }
+                
+                // Load device preference and start listening for hardware changes
+                self.useSystemDefault = UserDefaults.standard.object(forKey: "useSystemDefault") as? Bool ?? true
+                
+                self.deviceListener = AudioDeviceListener()
+                self.deviceListener?.onDevicesChanged = { [weak self] in
+                    self?.handleDeviceListChanged()
+                }
+                self.deviceListener?.onDefaultInputChanged = { [weak self] newDeviceID in
+                    self?.handleDefaultInputChanged(newDeviceID)
                 }
             }
         }
@@ -281,6 +305,80 @@ class AppModel {
         } else {
             startRecording()
         }
+    }
+
+    // MARK: - Device Change Handling
+
+    private func handleDeviceListChanged() {
+        refreshAudioDevices()
+        // If the selected device disappeared, switch to system default
+        if let selected = selectedInputDevice,
+           !availableInputDevices.contains(where: { $0.uniqueID == selected.uniqueID }) {
+            let newDevice = AVCaptureDevice.default(for: .audio) ?? availableInputDevices.first
+            selectedInputDevice = newDevice
+            if isRecording {
+                restartRecordingOnNewDevice()
+            }
+            if let name = newDevice?.localizedName {
+                showDeviceSwitchMessage("Switched to: \(name)")
+            }
+        }
+    }
+
+    private func handleDefaultInputChanged(_ newDeviceID: AudioDeviceID) {
+        refreshAudioDevices()
+        if useSystemDefault {
+            if let newDevice = avCaptureDevice(for: newDeviceID) {
+                selectedInputDevice = newDevice
+                if isRecording {
+                    restartRecordingOnNewDevice()
+                }
+                showDeviceSwitchMessage("Switched to: \(newDevice.localizedName)")
+            }
+        } else {
+            // useSystemDefault is false — device-gone is handled by handleDeviceListChanged()
+        }
+    }
+
+    func restartRecordingOnNewDevice() {
+        guard isRecording else { return }
+        // Stop only the audio engine — do NOT call stopRecordingAndTranscribe
+        // so TranscriptionManager's accumulated audio is preserved.
+        audioManager?.stopRecording()
+        do {
+            try audioManager?.startRecording(device: selectedInputDevice)
+        } catch {
+            self.errorMessage = "Failed to switch microphone: \(error.localizedDescription)"
+        }
+    }
+
+    private func showDeviceSwitchMessage(_ message: String) {
+        deviceSwitchMessage = message
+        deviceSwitchClearWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.deviceSwitchMessage = ""
+        }
+        deviceSwitchClearWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: work)
+    }
+
+    /// Maps a CoreAudio AudioDeviceID to the corresponding AVCaptureDevice.
+    private func avCaptureDevice(for audioDeviceID: AudioDeviceID) -> AVCaptureDevice? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var uid: CFString = "" as CFString
+        var size = UInt32(MemoryLayout<CFString>.size)
+        let status = AudioObjectGetPropertyData(audioDeviceID, &address, 0, nil, &size, &uid)
+        guard status == noErr else { return nil }
+        let uidString = uid as String
+        return availableInputDevices.first(where: { $0.uniqueID == uidString })
+    }
+
+    deinit {
+        deviceListener = nil
     }
 
     // MARK: - Overlay Helpers

@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import CoreAudio
 
 class AudioManager: NSObject {
@@ -36,7 +37,28 @@ class AudioManager: NSObject {
         
         let inputNode = engine.inputNode
         
-        // Setup input format from the hardware
+        // If a specific device is requested, route the engine's input to it
+        if let device = device,
+           let coreAudioDeviceID = Self.audioDeviceID(for: device.uniqueID) {
+            guard let audioUnit = inputNode.audioUnit else {
+                throw NSError(domain: "AudioManagerError", code: 3,
+                             userInfo: [NSLocalizedDescriptionKey: "Cannot access audio unit"])
+            }
+            var deviceID = coreAudioDeviceID
+            let status = AudioUnitSetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &deviceID,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            if status != noErr {
+                print("AudioManager: Failed to set input device (OSStatus \(status)), falling back to default")
+            }
+        }
+        
+        // Setup input format from the hardware (read AFTER setting the device)
         let inputFormat = inputNode.inputFormat(forBus: 0)
         
         // Setup the target format for Whisper (16kHz, Mono, 32-bit Float)
@@ -96,6 +118,43 @@ class AudioManager: NSObject {
                 self.onBufferReceived?(floatArray)
             }
         }
+    }
+    
+    /// Maps an AVCaptureDevice.uniqueID to the corresponding CoreAudio AudioDeviceID.
+    private static func audioDeviceID(for uniqueID: String) -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var dataSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address, 0, nil, &dataSize
+        ) == noErr else { return nil }
+        
+        let deviceCount = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+        var deviceIDs = [AudioDeviceID](repeating: 0, count: deviceCount)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address, 0, nil, &dataSize, &deviceIDs
+        ) == noErr else { return nil }
+        
+        for id in deviceIDs {
+            var uidAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyDeviceUID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var uid: CFString = "" as CFString
+            var uidSize = UInt32(MemoryLayout<CFString>.size)
+            if AudioObjectGetPropertyData(id, &uidAddress, 0, nil, &uidSize, &uid) == noErr {
+                if (uid as String) == uniqueID {
+                    return id
+                }
+            }
+        }
+        return nil
     }
     
     func stopRecording() {

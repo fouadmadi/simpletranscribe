@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using SimpleTranscribe.Models;
 using SimpleTranscribe.Services;
@@ -9,6 +10,7 @@ public sealed partial class SettingsPanel : UserControl
     public event EventHandler<string?>? DeviceChanged;
     public event EventHandler<string>? ModelChanged;
     public event EventHandler<string>? LanguageChanged;
+    public event EventHandler<bool>? UseSystemDefaultChanged;
 
     private bool _suppressEvents;
 
@@ -69,6 +71,28 @@ public sealed partial class SettingsPanel : UserControl
             }
         }
         _suppressEvents = false;
+    }
+
+    public void UpdateUseSystemDefault(bool value)
+    {
+        _suppressEvents = true;
+        UseSystemDefaultCheckBox.IsChecked = value;
+        MicrophoneComboBox.IsEnabled = !value;
+        _suppressEvents = false;
+    }
+
+    public void UpdateDeviceSwitchMessage(string message)
+    {
+        DeviceSwitchMessageText.Text = message;
+        DeviceSwitchMessageText.Visibility = string.IsNullOrEmpty(message)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void OnUseSystemDefaultChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        UseSystemDefaultChanged?.Invoke(this, UseSystemDefaultCheckBox.IsChecked == true);
     }
 
     private void OnMicrophoneChanged(object sender, SelectionChangedEventArgs e)

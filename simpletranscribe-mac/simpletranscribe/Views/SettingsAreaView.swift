@@ -5,20 +5,29 @@ struct SettingsAreaView: View {
     @Binding var selectedInputDevice: AVCaptureDevice?
     @Binding var selectedModelID: String
     @Binding var selectedLanguage: String
+    @Binding var useSystemDefault: Bool
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
     var body: some View {
         HStack(spacing: 20) {
-            Picker("Microphone", selection: $selectedInputDevice) {
-                if availableInputDevices.isEmpty {
-                    Text("Detecting…").tag(nil as AVCaptureDevice?)
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Microphone", selection: $selectedInputDevice) {
+                    if availableInputDevices.isEmpty {
+                        Text("Detecting…").tag(nil as AVCaptureDevice?)
+                    }
+                    ForEach(availableInputDevices, id: \.uniqueID) { device in
+                        Text(device.localizedName).tag(device as AVCaptureDevice?)
+                    }
                 }
-                ForEach(availableInputDevices, id: \.uniqueID) { device in
-                    Text(device.localizedName).tag(device as AVCaptureDevice?)
-                }
+                .disabled(useSystemDefault)
+                .opacity(useSystemDefault ? 0.5 : 1.0)
+                .frame(maxWidth: 250)
+
+                Toggle("Use system default", isOn: $useSystemDefault)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
             }
-            .frame(maxWidth: 250)
 
             Picker("Model", selection: $selectedModelID) {
                 if downloadedModels.isEmpty {

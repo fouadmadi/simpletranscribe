@@ -13,6 +13,15 @@
                           Width="250"
                           SelectionChanged="OnMicrophoneChanged"
                           PlaceholderText="Detecting…" />
+                <CheckBox x:Name="UseSystemDefaultCheckBox"
+                          Content="Use system default"
+                          FontSize="12"
+                          Checked="OnUseSystemDefaultChanged"
+                          Unchecked="OnUseSystemDefaultChanged" />
+                <TextBlock x:Name="DeviceSwitchMessageText"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Visibility="Collapsed" />
             </StackPanel>
 
             <!-- Model picker -->

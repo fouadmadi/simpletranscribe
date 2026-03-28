@@ -28,9 +28,22 @@ struct ContentView: View {
                 selectedInputDevice: $appModel.selectedInputDevice,
                 selectedModelID: $appModel.selectedModelID,
                 selectedLanguage: $appModel.selectedLanguage,
+                useSystemDefault: $appModel.useSystemDefault,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
             )
+
+            if !appModel.deviceSwitchMessage.isEmpty {
+                Text(appModel.deviceSwitchMessage)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.accentColor.opacity(0.08))
+                    .transition(.opacity)
+                    .animation(.easeInOut, value: appModel.deviceSwitchMessage)
+            }
 
             Divider()
 
