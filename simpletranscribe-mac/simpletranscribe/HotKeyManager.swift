@@ -5,6 +5,9 @@ import Observation
 class HotKeyManager {
     private(set) var isHotKeyPressed = false
 
+    /// Callback fired on the main thread whenever the hotkey state changes.
+    var onHotKeyChanged: ((Bool) -> Void)?
+
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var lastReportedState = false
@@ -61,6 +64,7 @@ class HotKeyManager {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.isHotKeyPressed = pressed
+            self.onHotKeyChanged?(pressed)
         }
     }
 }

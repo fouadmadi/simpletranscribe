@@ -9,8 +9,7 @@ struct TranscriptResultsView: View {
         ZStack(alignment: .bottomTrailing) {
             TextEditor(text: $transcribedText)
                 .font(.body)
-                .padding()
-                .frame(minHeight: 200, maxHeight: .infinity)
+                .frame(minHeight: 75, maxHeight: .infinity)
 
             Button(action: onCopy) {
                 Image(systemName: "doc.on.clipboard")

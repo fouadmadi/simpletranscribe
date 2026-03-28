@@ -25,6 +25,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showTranscriptionStarted;
     [ObservableProperty] private string _transcribedText = "";
     [ObservableProperty] private string? _errorMessage;
+    [ObservableProperty] private OverlayState _overlayState = OverlayState.Idle;
 
     [ObservableProperty] private string _selectedLanguage;
     [ObservableProperty] private string _selectedModelId;
@@ -181,6 +182,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _transcriptionManager.StartTranscription(SelectedLanguage);
             IsRecording = true;
             ShowTranscriptionStarted = true;
+            OverlayState = OverlayState.Recording;
             _audioManager.StartRecording(SelectedDeviceId);
             SoundManager.PlayRecordingStarted();
         }
@@ -189,6 +191,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ErrorMessage = $"Failed to start recording: {ex.Message}";
             IsRecording = false;
             ShowTranscriptionStarted = false;
+            OverlayState = OverlayState.Error;
             SoundManager.PlayError();
         }
     }
@@ -200,6 +203,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsProcessing = true;
         ErrorMessage = null;
         ShowTranscriptionStarted = false;
+        OverlayState = OverlayState.Transcribing;
 
         try
         {
@@ -214,6 +218,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             IsProcessing = false;
+            OverlayState = OverlayState.Done;
             SoundManager.PlayTranscriptionComplete();
 
             if (autoPaste && !string.IsNullOrEmpty(trimmed))
@@ -223,6 +228,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             ErrorMessage = $"Transcription failed: {ex.Message}";
             IsProcessing = false;
+            OverlayState = OverlayState.Error;
             SoundManager.PlayError();
         }
     }

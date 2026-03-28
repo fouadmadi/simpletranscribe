@@ -1,14 +1,17 @@
 using Microsoft.UI.Xaml;
+using SimpleTranscribe.Interop;
 using SimpleTranscribe.ViewModels;
 
 namespace SimpleTranscribe;
 
 public sealed partial class MainWindow : Window
 {
-    private readonly MainViewModel _vm = new();
+    private readonly MainViewModel _vm;
+    private bool _isQuitting;
 
-    public MainWindow()
+    public MainWindow(MainViewModel viewModel)
     {
+        _vm = viewModel;
         InitializeComponent();
 
         // Set default window size to match macOS (700×550)
@@ -40,10 +43,19 @@ public sealed partial class MainWindow : Window
             SyncAllUI();
         });
 
+        // Hide to system tray on close instead of quitting
+        AppWindow.Closing += (_, args) =>
+        {
+            if (!_isQuitting)
+            {
+                args.Cancel = true;
+                HideWindow();
+            }
+        };
+
         Closed += (_, _) =>
         {
             ModelDownloadPanel.Detach();
-            _vm.Cleanup();
         };
     }
 
@@ -184,5 +196,27 @@ public sealed partial class MainWindow : Window
     {
         ModelOverlay.Visibility = Visibility.Collapsed;
         _vm.SelectDefaultModel();
+    }
+
+    /// <summary>Shows and restores the window from the system tray.</summary>
+    public void ShowAndRestore()
+    {
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        Win32Interop.ShowWindow(hwnd, Win32Interop.SW_RESTORE);
+        Win32Interop.SetForegroundWindow(hwnd);
+        Activate();
+    }
+
+    /// <summary>Hides the window (minimizes to tray).</summary>
+    public void HideWindow()
+    {
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        Win32Interop.ShowWindow(hwnd, Win32Interop.SW_HIDE);
+    }
+
+    /// <summary>Marks the window for actual close (quit) instead of hide-to-tray.</summary>
+    public void PrepareForQuit()
+    {
+        _isQuitting = true;
     }
 }

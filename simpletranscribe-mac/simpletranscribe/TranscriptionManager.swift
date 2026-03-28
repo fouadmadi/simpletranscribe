@@ -1,15 +1,16 @@
 import SwiftUI
-import Combine
+import Observation
 import SwiftWhisper
 import whisper_cpp
 
-class TranscriptionManager: ObservableObject {
+@Observable
+class TranscriptionManager {
     var whisper: Whisper?
     
-    @Published var isTranscribing = false
+    var isTranscribing = false
     
-    // For streaming
-    private var accumulatedAudio: [Float] = []
+    // For streaming — ignored to avoid observation overhead on the audio thread
+    @ObservationIgnored private var accumulatedAudio: [Float] = []
     private let audioLock = NSLock()
     
     private static let languageMap: [String: WhisperLanguage] = [
