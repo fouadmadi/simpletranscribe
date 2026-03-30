@@ -23,6 +23,23 @@ jobs:
         run: dotnet restore ./simpletranscribe-win/SimpleTranscribe.sln
       - name: Build
         run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore
+      - name: Publish
+        run: dotnet publish ./simpletranscribe-win/SimpleTranscribe/SimpleTranscribe.csproj -c Release -r win-x64 --self-contained -o ./simpletranscribe-win/publish
+      - name: Upload Windows Published App
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-publish
+          path: ./simpletranscribe-win/publish
+      - name: Build Installer (Inno Setup)
+        run: |
+          iscc ./simpletranscribe-win/SimpleTranscribe.Installer/SimpleTranscribe.iss
+        continue-on-error: true
+      - name: Upload Windows Installer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: ./simpletranscribe-win/SimpleTranscribe.Installer/Output/SimpleTranscribe-Setup.exe
       # - name: Run Tests
       #   run: echo "Unit tests disabled for Windows in CI pipeline"
       #   # dotnet test ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-build --verbosity normal --filter "Category!=Integration&Category!=Performance"
@@ -40,6 +57,16 @@ jobs:
         run: |
           cd simpletranscribe-mac/simpletranscribe
           xcodebuild -scheme simpletranscribe -project ../simpletranscribe.xcodeproj -configuration Release build
+      - name: Archive .app
+        run: |
+          cd simpletranscribe-mac/simpletranscribe
+          mkdir -p ../../macos-artifacts
+          cp -R ./build/Release/simpletranscribe.app ../../macos-artifacts/
+      - name: Upload macOS App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: ./simpletranscribe-mac/macos-artifacts/simpletranscribe.app
      #- name: Run Unit Tests (Unit Only)
       #  run: |
        #    cd simpletranscribe-mac/simpletranscribe
