@@ -18,6 +18,60 @@ internal static class WhisperNative
 {
     private const string LibName = "whisper";
 
+    static WhisperNative()
+    {
+        // WinUI apps don't probe runtimes/{rid}/ automatically for native DLLs.
+        NativeLibrary.SetDllImportResolver(typeof(WhisperNative).Assembly, (name, asm, paths) =>
+        {
+            if (name != LibName)
+                return nint.Zero;
+
+            if (NativeLibrary.TryLoad(name, asm, paths, out var h))
+                return h;
+
+            var arch = RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64 => "win-x64",
+                Architecture.Arm64 => "win-arm64",
+                _ => null
+            };
+
+            if (arch is not null)
+            {
+                // Whisper.net.Runtime copies DLLs to runtimes/{rid}/ (not runtimes/{rid}/native/).
+                // Probe both locations.
+                string[] probeDirs =
+                [
+                    Path.Combine(AppContext.BaseDirectory, "runtimes", arch),
+                    Path.Combine(AppContext.BaseDirectory, "runtimes", arch, "native"),
+                ];
+
+                foreach (var dir in probeDirs)
+                {
+                    if (!Directory.Exists(dir)) continue;
+
+                    var probe = Path.Combine(dir, $"{name}.dll");
+                    if (!File.Exists(probe)) continue;
+
+                    AddDllDirectory(dir);
+
+                    // LOAD_WITH_ALTERED_SEARCH_PATH so whisper.dll finds ggml-*.dll in the same dir
+                    h = LoadLibraryExW(probe, nint.Zero, 0x00000008);
+                    if (h != nint.Zero)
+                        return h;
+                }
+            }
+
+            return nint.Zero;
+        });
+    }
+
+    [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern nint AddDllDirectory(string newDirectory);
+
+    [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern nint LoadLibraryExW(string lpLibFileName, nint hFile, uint dwFlags);
+
     // --- Context lifecycle ---
 
     [DllImport(LibName, EntryPoint = "whisper_init_from_file", CallingConvention = CallingConvention.Cdecl)]
@@ -39,11 +93,17 @@ internal static class WhisperNative
     internal static extern nint FullGetSegmentText(nint ctx, int iSegment);
 
     /// <summary>
-    /// Returns the size of whisper_full_params in bytes.
-    /// This lets us allocate the correct amount of native memory regardless of whisper.cpp version.
+    /// Allocates and returns a pointer to whisper_full_params with defaults for the given strategy.
+    /// The returned pointer must be freed with whisper_free_params.
     /// </summary>
     [DllImport(LibName, EntryPoint = "whisper_full_default_params_by_ref", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void FullDefaultParamsByRef(nint ctx, int strategy, nint paramsOut);
+    internal static extern nint FullDefaultParamsByRef(int strategy);
+
+    /// <summary>
+    /// Frees a whisper_full_params pointer returned by whisper_full_default_params_by_ref.
+    /// </summary>
+    [DllImport(LibName, EntryPoint = "whisper_free_params", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void FreeParams(nint paramsPtr);
 
     /// <summary>
     /// Get sizeof(whisper_full_params) from the native library.
@@ -79,19 +139,17 @@ internal static class WhisperSamplingStrategy
 /// </summary>
 internal sealed class WhisperParams : IDisposable
 {
-    // Conservative allocation — large enough for any whisper.cpp version.
-    // whisper_full_params is typically 200-600 bytes depending on version.
-    private const int NativeAllocSize = 1024;
-
     private nint _native;
     private bool _disposed;
+    private bool _ownedByNative; // true = free via whisper_free_params, false = Marshal.FreeHGlobal
 
     /// <summary>Pointer to the native whisper_full_params memory.</summary>
     internal nint Pointer => _native;
 
-    private WhisperParams(nint native)
+    private WhisperParams(nint native, bool ownedByNative)
     {
         _native = native;
+        _ownedByNative = ownedByNative;
     }
 
     /// <summary>
@@ -99,30 +157,27 @@ internal sealed class WhisperParams : IDisposable
     /// </summary>
     public static WhisperParams CreateDefault(int strategy)
     {
-        var native = Marshal.AllocHGlobal(NativeAllocSize);
-
-        // Zero the buffer first to ensure any fields beyond what whisper fills are safe
-        unsafe
-        {
-            new Span<byte>((void*)native, NativeAllocSize).Clear();
-        }
-
-        // Let whisper.cpp fill in all default values.
-        // whisper_full_default_params_by_ref writes into the provided buffer.
-        // If the function is not available (older whisper.cpp), we fall back.
+        // whisper_full_default_params_by_ref allocates and returns a pointer to default params
         try
         {
-            WhisperNative.FullDefaultParamsByRef(nint.Zero, strategy, native);
+            var ptr = WhisperNative.FullDefaultParamsByRef(strategy);
+            if (ptr != nint.Zero)
+                return new WhisperParams(ptr, ownedByNative: true);
         }
         catch (EntryPointNotFoundException)
         {
-            // Fallback: use the by-value version and copy the bytes.
-            // This is still safe because we allocated more than enough memory.
-            FallbackFillDefaults(native, strategy);
+            // Older whisper.cpp builds without this function — use fallback below
         }
 
-        return new WhisperParams(native);
+        // Fallback: allocate our own buffer and set known-good defaults
+        var native = Marshal.AllocHGlobal(NativeAllocSize);
+        unsafe { new Span<byte>((void*)native, NativeAllocSize).Clear(); }
+        FallbackFillDefaults(native, strategy);
+        return new WhisperParams(native, ownedByNative: false);
     }
+
+    // Conservative allocation for fallback path
+    private const int NativeAllocSize = 1024;
 
     private static void FallbackFillDefaults(nint target, int strategy)
     {
@@ -244,7 +299,10 @@ internal sealed class WhisperParams : IDisposable
         _disposed = true;
         if (_native != nint.Zero)
         {
-            Marshal.FreeHGlobal(_native);
+            if (_ownedByNative)
+                WhisperNative.FreeParams(_native);
+            else
+                Marshal.FreeHGlobal(_native);
             _native = nint.Zero;
         }
     }
