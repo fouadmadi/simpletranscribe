@@ -1,0 +1,45 @@
+# GitHub Actions CI for SimpleTranscribe
+# This workflow builds both macOS (Swift) and Windows (.NET) projects to validate successful builds on push and PR.
+
+name: CI Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    name: Build Windows (.NET)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore dependencies
+        run: dotnet restore ./simpletranscribe-win/SimpleTranscribe.sln
+      - name: Build
+        run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore
+      - name: Run Tests
+        run: dotnet test ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-build --verbosity normal
+
+  build-macos:
+    name: Build macOS (Swift)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest
+      - name: Build
+        run: |
+          cd simpletranscribe-mac/simpletranscribe
+          xcodebuild -scheme simpletranscribe -project ../simpletranscribe.xcodeproj -configuration Release build
+      - name: Run Unit Tests
+        run: |
+          cd simpletranscribe-mac/simpletranscribe
+          xcodebuild test -scheme simpletranscribe -project ../simpletranscribe.xcodeproj -destination 'platform=macOS'
