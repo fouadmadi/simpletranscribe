@@ -14,7 +14,7 @@ jobs:
     name: Build Windows (.NET)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Get Version from Git
         id: get_version
         shell: bash
@@ -28,7 +28,7 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
       - name: Restore dependencies
@@ -47,7 +47,7 @@ jobs:
         continue-on-error: true
       - name: Upload Windows Installer
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: windows-installer
           path: ./simpletranscribe-win/SimpleTranscribe.Installer/Output/SimpleTranscribe-Setup.exe
@@ -59,7 +59,7 @@ jobs:
     name: Build macOS (Swift)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload macOS App Zip
         if: steps.upload_flag.outputs.should_upload == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-app
           path: simpletranscribe-mac/macos-artifacts/simpletranscribe.app.zip
