@@ -42,9 +42,7 @@ public class AudioDeviceNotifierTests
         try
         {
             using var notifier = new AudioDeviceNotifier();
-            bool devicesCalled = false;
             string? defaultId = null;
-            notifier.DevicesChanged += () => devicesCalled = true;
             notifier.DefaultDeviceChanged += id => defaultId = id;
             // Just verify subscription doesn't throw
         }

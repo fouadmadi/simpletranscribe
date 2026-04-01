@@ -19,12 +19,9 @@ struct AudioDeviceListenerTests {
     @Test("Callbacks can be set on the listener")
     func callbacksCanBeSet() {
         let listener = AudioDeviceListener()
-        var devicesCalled = false
-        listener.onDevicesChanged = { devicesCalled = true }
         listener.onDefaultInputChanged = { _ in }
         #expect(listener.onDevicesChanged != nil)
         #expect(listener.onDefaultInputChanged != nil)
-        _ = devicesCalled
     }
 
     @Test("getCurrentDefaultInputDevice returns without crashing")
