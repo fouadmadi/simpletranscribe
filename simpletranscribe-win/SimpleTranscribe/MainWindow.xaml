@@ -8,6 +8,11 @@
 
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
         <!-- Recording controls -->
+        <MenuBar Grid.Row="0">
+            <MenuBarItem Title="Help">
+                <MenuFlyoutItem Text="About" Click="OnAboutMenuClicked"/>
+            </MenuBarItem>
+        </MenuBar>
         <views:RecordingControlsPanel x:Name="RecordingControls" Grid.Row="0" />
 
         <Border Grid.Row="1" Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />

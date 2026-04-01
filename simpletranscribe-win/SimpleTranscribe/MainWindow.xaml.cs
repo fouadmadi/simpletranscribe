@@ -6,6 +6,15 @@ namespace SimpleTranscribe;
 
 public sealed partial class MainWindow : Window
 {
+    private void OnAboutMenuClicked(object sender, RoutedEventArgs e)
+    {
+        ShowAboutDialog();
+    }
+    private async void ShowAboutDialog()
+    {
+        var dialog = new Views.AboutDialog();
+        await dialog.ShowAsync();
+    }
     private readonly MainViewModel _vm;
     private bool _isQuitting;
 

@@ -1,0 +1,12 @@
+<ContentDialog
+    x:Class="SimpleTranscribe.Views.AboutDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="About SimpleTranscribe"
+    PrimaryButtonText="OK">
+    <StackPanel Spacing="8">
+        <TextBlock Text="SimpleTranscribe for Windows" FontWeight="Bold" FontSize="16"/>
+        <TextBlock Text="Version: {x:Bind AppVersion}"/>
+        <TextBlock Text="Speech-to-text powered by whisper.cpp"/>
+    </StackPanel>
+</ContentDialog>

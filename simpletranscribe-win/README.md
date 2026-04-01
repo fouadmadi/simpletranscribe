@@ -14,6 +14,21 @@ A Windows 11 native speech-to-text transcription app powered by [whisper.cpp](ht
 2. Select **x64** or **arm64** platform
 3. Build and run
 
+## Versioning (CI/CD)
+
+The Windows app uses semantic versioning, set in `SimpleTranscribe.csproj` and `app.manifest`.
+
+- During CI builds (GitHub Actions), set the `BUILD_VERSION` environment variable (e.g., `1.2.3`) to override the version for that build.
+- The version is displayed in the About dialog (Help > About) in the app.
+- To increment the version automatically, update the `BUILD_VERSION` variable in your CI workflow.
+
+Example GitHub Actions step:
+```yaml
+- name: Set version
+  run: |
+    echo "BUILD_VERSION=1.2.3" >> $GITHUB_ENV
+```
+
 ## Project Structure
 
 ```

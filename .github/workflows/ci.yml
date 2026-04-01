@@ -15,6 +15,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Get Version from Git
+        id: get_version
+        shell: bash
+        run: |
+          # Use tag if present, else use commit hash and date
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$TAG" ]; then
+            VERSION="$TAG"
+          else
+            VERSION="0.0.0-$(git rev-parse --short HEAD)-$(date +%Y%m%d)"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -22,9 +34,12 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore ./simpletranscribe-win/SimpleTranscribe.sln
       - name: Build
-        run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore
+        run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore /p:BUILD_VERSION=${{ env.VERSION }}
       - name: Publish
-        run: dotnet publish ./simpletranscribe-win/SimpleTranscribe/SimpleTranscribe.csproj -c Release -r win-x64 --self-contained -o ./simpletranscribe-win/publish
+        run: dotnet publish ./simpletranscribe-win/SimpleTranscribe/SimpleTranscribe.csproj -c Release -r win-x64 --self-contained -o ./simpletranscribe-win/publish /p:BUILD_VERSION=${{ env.VERSION }}
+
+      # Inject version into Info.plist for macOS
+      # This step will be added to the macOS build job
       
       - name: Build Installer (Inno Setup)
         run: |
@@ -49,6 +64,17 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest
+      - name: Inject Version into Info.plist
+        shell: bash
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$TAG" ]; then
+            VERSION="$TAG"
+          else
+            VERSION="0.0.0-$(git rev-parse --short HEAD)-$(date +%Y%m%d)"
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" simpletranscribe-mac/simpletranscribe/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" simpletranscribe-mac/simpletranscribe/Info.plist
       - name: Build
         run: |
           cd simpletranscribe-mac

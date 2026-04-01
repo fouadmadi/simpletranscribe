@@ -14,7 +14,20 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <WindowsSdkPackageVersion>10.0.22621.47</WindowsSdkPackageVersion>
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
   </PropertyGroup>
+
+  <Target Name="SetVersionFromEnv" BeforeTargets="GenerateAssemblyInfo">
+    <PropertyGroup>
+      <Version Condition=" '$(BUILD_VERSION)' != '' ">$(BUILD_VERSION)</Version>
+      <AssemblyVersion Condition=" '$(BUILD_VERSION)' != '' ">$(BUILD_VERSION)</AssemblyVersion>
+      <FileVersion Condition=" '$(BUILD_VERSION)' != '' ">$(BUILD_VERSION)</FileVersion>
+      <InformationalVersion Condition=" '$(BUILD_VERSION)' != '' ">$(BUILD_VERSION)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />

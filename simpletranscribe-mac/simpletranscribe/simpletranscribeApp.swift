@@ -27,7 +27,7 @@ struct simpletranscribeApp: App {
                 Button("About SimpleTranscribe") {
                     NSApplication.shared.orderFrontStandardAboutPanel(options: [
                         .applicationName: "SimpleTranscribe",
-                        .version: "",
+                        .version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
                     ])
                 }
             }
