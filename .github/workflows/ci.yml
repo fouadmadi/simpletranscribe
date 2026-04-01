@@ -25,11 +25,7 @@ jobs:
         run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore
       - name: Publish
         run: dotnet publish ./simpletranscribe-win/SimpleTranscribe/SimpleTranscribe.csproj -c Release -r win-x64 --self-contained -o ./simpletranscribe-win/publish
-      - name: Upload Windows Published App
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-publish
-          path: ./simpletranscribe-win/publish
+      
       - name: Build Installer (Inno Setup)
         run: |
           iscc ./simpletranscribe-win/SimpleTranscribe.Installer/SimpleTranscribe.iss
@@ -57,15 +53,28 @@ jobs:
         run: |
           cd simpletranscribe-mac
           xcodebuild -scheme simpletranscribe -project simpletranscribe.xcodeproj -configuration Release build
-      - name: Archive .app
+      - name: Debug DerivedData
+        run: |
+          echo "Listing DerivedData:"
+          ls -lR ~/Library/Developer/Xcode/DerivedData || true
+
+      - name: Archive .app if exists
         run: |
           mkdir -p simpletranscribe-mac/macos-artifacts
-          cp -R "$HOME/Library/Developer/Xcode/DerivedData"/*/Build/Products/Release/simpletranscribe.app simpletranscribe-mac/macos-artifacts/ || echo ".app not found"
-      - name: Upload macOS App Artifact
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" | grep -i simpletranscribe | head -n 1)
+          if [ -d "$APP_PATH" ]; then
+            cp -R "$APP_PATH" simpletranscribe-mac/macos-artifacts/
+            cd simpletranscribe-mac/macos-artifacts
+            zip -r simpletranscribe.app.zip simpletranscribe.app
+          else
+            echo "No .app found"
+          fi
+      - name: Upload macOS App Zip
+        if: ${{ exists('simpletranscribe-mac/macos-artifacts/simpletranscribe.app.zip') }}
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: ./simpletranscribe-mac/macos-artifacts/simpletranscribe.app
+          path: simpletranscribe-mac/macos-artifacts/simpletranscribe.app.zip
      #- name: Run Unit Tests (Unit Only)
       #  run: |
        #    cd simpletranscribe-mac/simpletranscribe
