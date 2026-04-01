@@ -55,13 +55,12 @@ jobs:
           xcode-version: latest
       - name: Build
         run: |
-          cd simpletranscribe-mac/simpletranscribe
-          xcodebuild -scheme simpletranscribe -project ../simpletranscribe.xcodeproj -configuration Release build
+          cd simpletranscribe-mac
+          xcodebuild -scheme simpletranscribe -project simpletranscribe.xcodeproj -configuration Release build
       - name: Archive .app
         run: |
-          cd simpletranscribe-mac/simpletranscribe
-          mkdir -p ../../macos-artifacts
-          cp -R ./build/Release/simpletranscribe.app ../../macos-artifacts/
+          mkdir -p simpletranscribe-mac/macos-artifacts
+          cp -R "$HOME/Library/Developer/Xcode/DerivedData"/*/Build/Products/Release/simpletranscribe.app simpletranscribe-mac/macos-artifacts/ || echo ".app not found"
       - name: Upload macOS App Artifact
         uses: actions/upload-artifact@v4
         with:
