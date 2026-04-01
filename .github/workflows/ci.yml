@@ -69,8 +69,17 @@ jobs:
           else
             echo "No .app found"
           fi
+      - name: Set upload flag
+        id: upload_flag
+        run: |
+          if [ -f simpletranscribe-mac/macos-artifacts/simpletranscribe.app.zip ]; then
+            echo "should_upload=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_upload=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload macOS App Zip
-        if: ${{ exists('simpletranscribe-mac/macos-artifacts/simpletranscribe.app.zip') }}
+        if: steps.upload_flag.outputs.should_upload == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
