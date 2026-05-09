@@ -57,7 +57,8 @@ struct ContentView: View {
                     showCopiedAlert: $showCopiedAlert,
                     liveTranscriptText: appModel.liveTranscriptText,
                     isRecording: appModel.isRecording,
-                    onCopy: copyToClipboard
+                    onCopy: copyToClipboard,
+                    onExport: { format in appModel.exportCurrentTranscript(format: format) }
                 )
                 .frame(minWidth: 300)
 

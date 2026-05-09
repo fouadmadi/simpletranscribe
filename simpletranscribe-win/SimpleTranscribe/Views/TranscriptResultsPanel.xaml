@@ -35,17 +35,37 @@
                        FontSize="13" />
         </Border>
 
-        <!-- Copy button overlay (bottom-right of row 0) -->
-        <Button x:Name="CopyButton"
-                Grid.Row="0"
-                Click="OnCopy"
-                VerticalAlignment="Bottom"
-                HorizontalAlignment="Right"
-                Margin="16"
-                ToolTipService.ToolTip="Copy to Clipboard"
-                Padding="8">
-            <FontIcon Glyph="&#xE8C8;" FontSize="16" />
-        </Button>
+        <!-- Button cluster overlay (bottom-right of row 0) -->
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Bottom"
+                    HorizontalAlignment="Right"
+                    Margin="16"
+                    Spacing="4">
+
+            <!-- Export split button -->
+            <SplitButton x:Name="ExportButton"
+                         Click="OnExportTxt"
+                         ToolTipService.ToolTip="Export as plain text"
+                         Padding="8">
+                <FontIcon Glyph="&#xE74E;" FontSize="16" />
+                <SplitButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Plain Text (.txt)" Click="OnExportTxt" />
+                        <MenuFlyoutItem Text="Markdown (.md)"    Click="OnExportMd" />
+                        <MenuFlyoutItem Text="SubRip (.srt)"     Click="OnExportSrt" />
+                    </MenuFlyout>
+                </SplitButton.Flyout>
+            </SplitButton>
+
+            <!-- Copy button -->
+            <Button x:Name="CopyButton"
+                    Click="OnCopy"
+                    ToolTipService.ToolTip="Copy to Clipboard"
+                    Padding="8">
+                <FontIcon Glyph="&#xE8C8;" FontSize="16" />
+            </Button>
+        </StackPanel>
 
         <!-- Copied tooltip -->
         <TeachingTip x:Name="CopiedTip"

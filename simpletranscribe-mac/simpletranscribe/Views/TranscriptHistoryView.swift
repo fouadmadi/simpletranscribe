@@ -10,6 +10,19 @@ struct TranscriptHistoryView: View {
                 Text("History")
                     .font(.headline)
                 Spacer()
+                Menu {
+                    ForEach(ExportFormat.allCases) { format in
+                        Button(format.displayName) {
+                            appModel.exportHistory(format: format)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .menuStyle(.borderlessButton)
+                .help("Export history")
+                .disabled(appModel.history.entries.isEmpty)
+
                 Button("Clear All") {
                     showClearConfirm = true
                 }

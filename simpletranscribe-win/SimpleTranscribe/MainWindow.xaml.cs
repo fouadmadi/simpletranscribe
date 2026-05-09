@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
+        TranscriptResults.ExportRequested += (_, format) => _ = ExportTranscriptAsync(format);
 
         ModelDownloadPanel.CloseRequested += (_, _) => HideModelManager();
         ModelDownloadPanel.ModelSelected += (_, id) => _vm.SelectedModelId = id;
@@ -161,6 +162,38 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Delegate passed to PostProcessorConfig.Save so it can persist via the VM's settings store.</summary>
     private void SaveSetting(string key, string value) => _vm.SaveSettingPublic(key, value);
+
+    private async Task ExportTranscriptAsync(string format)
+    {
+        var content = _vm.GetExportContent(format);
+        if (string.IsNullOrEmpty(content))
+        {
+            _vm.ErrorMessage = "Nothing to export.";
+            return;
+        }
+
+        var picker = new Windows.Storage.Pickers.FileSavePicker
+        {
+            SuggestedFileName = $"transcript.{format}",
+            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
+        };
+        picker.FileTypeChoices.Add(format.ToUpperInvariant(), new List<string> { $".{format}" });
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+        var file = await picker.PickSaveFileAsync();
+        if (file == null) return;
+
+        try
+        {
+            await Windows.Storage.FileIO.WriteTextAsync(file, content);
+        }
+        catch (Exception ex)
+        {
+            _vm.ErrorMessage = $"Export failed: {ex.Message}";
+        }
+    }
 
     private void UpdateRecordingControls()
     {

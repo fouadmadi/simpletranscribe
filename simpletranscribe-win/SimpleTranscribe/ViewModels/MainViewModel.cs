@@ -454,6 +454,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
             PasteService.CopyToClipboard(TranscribedText);
     }
 
+    // Export is handled in MainWindow (needs HWND access) — exposes formatted content only.
+    public string GetExportContent(string format) => format switch
+    {
+        "md"  => TranscriptExporter.FormatMarkdown(TranscribedText),
+        "srt" => TranscriptExporter.FormatSrt(History.Entries),
+        "history-txt" => string.Join("\n\n", History.Entries.Select(e => e.Text)),
+        "history-md"  => TranscriptExporter.FormatHistoryMarkdown(History.Entries),
+        "history-srt" => TranscriptExporter.FormatSrt(History.Entries),
+        _     => TranscriptExporter.FormatText(TranscribedText),
+    };
+
     // --- Settings helpers ---
 
     private static readonly object _settingsLock = new();

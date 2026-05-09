@@ -389,6 +389,57 @@ class AppModel {
         }
     }
 
+    // MARK: - Export
+
+    func exportCurrentTranscript(format: ExportFormat) {
+        let content: String
+        switch format {
+        case .txt: content = TranscriptExporter.formatText(transcribedText)
+        case .md:  content = TranscriptExporter.formatMarkdown(transcribedText)
+        case .srt: content = TranscriptExporter.formatSRT(entries: history.entries)
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "Export Transcript"
+        panel.nameFieldStringValue = "transcript.\(format.rawValue)"
+        panel.allowedContentTypes = [format.contentType]
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
+    func exportHistory(format: ExportFormat) {
+        let content: String
+        switch format {
+        case .txt: content = history.entries.map(\.text).joined(separator: "\n\n")
+        case .md:
+            let body = history.entries.map { entry -> String in
+                let date = entry.timestamp.formatted(date: .abbreviated, time: .shortened)
+                return "## \(date)\n\n\(entry.text)"
+            }.joined(separator: "\n\n")
+            content = TranscriptExporter.formatMarkdown(body, title: "Transcript History")
+        case .srt: content = TranscriptExporter.formatSRT(entries: history.entries)
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "Export History"
+        panel.nameFieldStringValue = "transcript-history.\(format.rawValue)"
+        panel.allowedContentTypes = [format.contentType]
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Device Change Handling
 
     private func handleDeviceListChanged() {

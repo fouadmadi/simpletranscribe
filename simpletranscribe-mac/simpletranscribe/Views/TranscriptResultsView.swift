@@ -6,6 +6,7 @@ struct TranscriptResultsView: View {
     var liveTranscriptText: String = ""
     var isRecording: Bool = false
     let onCopy: () -> Void
+    let onExport: (ExportFormat) -> Void
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -27,19 +28,32 @@ struct TranscriptResultsView: View {
                 }
             }
 
-            Button(action: onCopy) {
-                Image(systemName: "doc.on.clipboard")
-                    .padding(8)
+            HStack(spacing: 4) {
+                Menu {
+                    ForEach(ExportFormat.allCases) { format in
+                        Button(format.displayName) { onExport(format) }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .padding(8)
+                }
+                .menuStyle(.borderlessButton)
+                .help("Export transcript")
+
+                Button(action: onCopy) {
+                    Image(systemName: "doc.on.clipboard")
+                        .padding(8)
+                }
+                .buttonStyle(.borderless)
+                .help("Copy to Clipboard")
+                .popover(isPresented: $showCopiedAlert) {
+                    Text("Copied!")
+                        .padding()
+                }
             }
-            .buttonStyle(.borderless)
             .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
             .cornerRadius(8)
             .padding()
-            .help("Copy to Clipboard")
-            .popover(isPresented: $showCopiedAlert) {
-                Text("Copied!")
-                    .padding()
-            }
         }
     }
 }

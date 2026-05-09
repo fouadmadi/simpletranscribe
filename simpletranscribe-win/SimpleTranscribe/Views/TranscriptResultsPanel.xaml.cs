@@ -7,6 +7,7 @@ public sealed partial class TranscriptResultsPanel : UserControl
 {
     public event EventHandler<string>? TextChanged;
     public event EventHandler? CopyClicked;
+    public event EventHandler<string>? ExportRequested; // format: "txt", "md", "srt"
 
     private bool _suppressEvents;
 
@@ -50,10 +51,13 @@ public sealed partial class TranscriptResultsPanel : UserControl
     private void OnCopy(object sender, RoutedEventArgs e)
     {
         CopyClicked?.Invoke(this, EventArgs.Empty);
-
         CopiedTip.IsOpen = true;
         _ = HideCopiedTipAsync();
     }
+
+    private void OnExportTxt(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(this, "txt");
+    private void OnExportMd(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(this, "md");
+    private void OnExportSrt(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(this, "srt");
 
     private async Task HideCopiedTipAsync()
     {
