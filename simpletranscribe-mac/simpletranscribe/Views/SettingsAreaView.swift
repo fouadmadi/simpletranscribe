@@ -78,6 +78,10 @@ struct SettingsAreaView: View {
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
+    var availableLanguages: [SupportedLanguage] {
+        SupportedLanguages.available(for: selectedModelID)
+    }
+
     var body: some View {
         HStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
@@ -109,14 +113,11 @@ struct SettingsAreaView: View {
             .frame(maxWidth: 200)
 
             Picker("Language", selection: $selectedLanguage) {
-                Text("Auto Detect").tag("auto")
-                Text("English").tag("en")
-                Text("Spanish").tag("es")
-                Text("French").tag("fr")
-                Text("German").tag("de")
-                Text("Chinese").tag("zh")
+                ForEach(availableLanguages) { lang in
+                    Text(lang.displayName).tag(lang.code)
+                }
             }
-            .frame(maxWidth: 150)
+            .frame(maxWidth: 180)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Hotkey")

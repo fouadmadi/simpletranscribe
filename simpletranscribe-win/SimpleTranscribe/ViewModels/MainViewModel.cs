@@ -49,6 +49,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool CanRecord => ModelLoaded && !string.IsNullOrEmpty(SelectedModelId);
     public bool HasDownloadedModels => _modelService.AvailableModels.Any(m => m.IsAvailable);
 
+    public List<SupportedLanguage> AvailableLanguages => SupportedLanguages.Available(SelectedModelId);
+
+    private void ValidateLanguageForModel(string modelId)
+    {
+        var allowed = SupportedLanguages.SupportedCodes(modelId);
+        if (allowed == null) return;
+        if (SelectedLanguage != "auto" && !allowed.Contains(SelectedLanguage))
+        {
+            SelectedLanguage = "en";
+            var modelName = _modelService.GetModel(modelId)?.Name ?? modelId;
+            DeviceSwitchMessage = $"{modelName} doesn't support the selected language — switched to English.";
+            ClearDeviceSwitchMessageAfterDelay();
+        }
+        OnPropertyChanged(nameof(AvailableLanguages));
+    }
+
     public MainViewModel()
     {
         // Restore persisted settings
@@ -128,6 +144,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ModelLoaded = false;
         ErrorMessage = null;
         OnPropertyChanged(nameof(CanRecord));
+
+        // Validate language against the new model's supported set
+        ValidateLanguageForModel(value);
 
         if (!string.IsNullOrEmpty(value) && _modelService.GetModel(value)?.IsAvailable == true)
             LoadModelInBackground();

@@ -25,7 +25,10 @@ class AppModel {
         didSet { UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage") }
     }
     var selectedModelID: String = UserDefaults.standard.string(forKey: "selectedModelID") ?? "" {
-        didSet { UserDefaults.standard.set(selectedModelID, forKey: "selectedModelID") }
+        didSet {
+            UserDefaults.standard.set(selectedModelID, forKey: "selectedModelID")
+            validateLanguageForModel()
+        }
     }
     var selectedInputDevice: AVCaptureDevice? {
         didSet { UserDefaults.standard.set(selectedInputDevice?.uniqueID, forKey: "selectedInputDeviceID") }
@@ -96,6 +99,17 @@ class AppModel {
 
     var isTranscribing: Bool {
         transcriptionManager?.isTranscribing ?? false
+    }
+
+    /// Ensures the currently selected language is valid for the newly selected model.
+    /// Falls back to "en" if not, and posts a device-switch style message.
+    private func validateLanguageForModel() {
+        guard let allowed = SupportedLanguages.supportedCodes(for: selectedModelID) else { return }
+        if selectedLanguage != "auto" && !allowed.contains(selectedLanguage) {
+            selectedLanguage = "en"
+            let modelName = modelService.getModel(selectedModelID)?.name ?? selectedModelID
+            deviceSwitchMessage = "\(modelName) doesn't support the selected language — switched to English."
+        }
     }
 
     init() {

@@ -114,7 +114,16 @@ public sealed partial class MainWindow : Window
 
                 case nameof(MainViewModel.DownloadedModels):
                     Settings.UpdateModels(_vm.DownloadedModels, _vm.SelectedModelId);
+                    Settings.UpdateLanguages(_vm.AvailableLanguages, _vm.SelectedLanguage);
                     UpdateModelBanner();
+                    break;
+
+                case nameof(MainViewModel.AvailableLanguages):
+                    Settings.UpdateLanguages(_vm.AvailableLanguages, _vm.SelectedLanguage);
+                    break;
+
+                case nameof(MainViewModel.SelectedLanguage):
+                    Settings.UpdateLanguage(_vm.SelectedLanguage);
                     break;
 
                 case nameof(MainViewModel.HasDownloadedModels):
@@ -130,7 +139,7 @@ public sealed partial class MainWindow : Window
         Settings.UpdateDevices(_vm.AvailableDevices, _vm.SelectedDeviceId);
         Settings.UpdateUseSystemDefault(_vm.UseSystemDefault);
         Settings.UpdateModels(_vm.DownloadedModels, _vm.SelectedModelId);
-        Settings.UpdateLanguage(_vm.SelectedLanguage);
+        Settings.UpdateLanguages(_vm.AvailableLanguages, _vm.SelectedLanguage);
         Settings.UpdateHotKey(_vm.HotKeyVKey, _vm.HotKeyModifierVKey);
         TranscriptResults.Text = _vm.TranscribedText;
         UpdateModelBanner();

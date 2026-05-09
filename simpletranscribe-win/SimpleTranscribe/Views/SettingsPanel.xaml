@@ -37,15 +37,9 @@
             <StackPanel Spacing="4">
                 <TextBlock Text="Language" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <ComboBox x:Name="LanguageComboBox"
-                          Width="150"
-                          SelectionChanged="OnLanguageChanged">
-                    <ComboBoxItem Content="Auto Detect" Tag="auto" />
-                    <ComboBoxItem Content="English" Tag="en" />
-                    <ComboBoxItem Content="Spanish" Tag="es" />
-                    <ComboBoxItem Content="French" Tag="fr" />
-                    <ComboBoxItem Content="German" Tag="de" />
-                    <ComboBoxItem Content="Chinese" Tag="zh" />
-                </ComboBox>
+                          Width="170"
+                          SelectionChanged="OnLanguageChanged"
+                          PlaceholderText="Select language" />
             </StackPanel>
             <!-- Hotkey recorder -->
             <StackPanel Spacing="4">

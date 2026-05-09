@@ -74,6 +74,26 @@ public sealed partial class SettingsPanel : UserControl
         _suppressEvents = false;
     }
 
+    public void UpdateLanguages(List<SupportedLanguage> languages, string selectedCode)
+    {
+        _suppressEvents = true;
+        LanguageComboBox.Items.Clear();
+        int selectedIndex = 0;
+        for (int i = 0; i < languages.Count; i++)
+        {
+            LanguageComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = languages[i].DisplayName,
+                Tag = languages[i].Code
+            });
+            if (languages[i].Code == selectedCode)
+                selectedIndex = i;
+        }
+        if (LanguageComboBox.Items.Count > 0)
+            LanguageComboBox.SelectedIndex = selectedIndex;
+        _suppressEvents = false;
+    }
+
     public void UpdateLanguage(string language)
     {
         _suppressEvents = true;
