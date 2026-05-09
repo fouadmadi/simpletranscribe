@@ -9,18 +9,26 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     private let logger = Logger(subsystem: "com.simpletranscribe", category: "ModelService")
     
     var availableModels: [ModelInfo] = []
-    var downloadProgress: [String: Double] = [:]
+    var downloadProgress: [String: DownloadProgress] = [:]
     var downloadError: [String: String] = [:]
     
     private let modelsDirectory: URL
     private var downloadTasks: [String: URLSessionDownloadTask] = [:]
+    private var directoryDownloadTasks: [String: Task<Void, Error>] = [:]
     private var downloadContinuations: [String: CheckedContinuation<Void, Never>] = [:]
     private var urlSession: URLSession!
     private var lastProgressUpdate: [String: Date] = [:]
+    private var speedSamples: [String: [SpeedSample]] = [:]
+    private let speedWindowSeconds: TimeInterval = 5.0
     private var modelIndex: [String: Int] = [:]
     // Thread-safe reverse lookup: task identifier -> model ID (written on main, read on delegate queue)
     private var taskToModelID: [Int: String] = [:]
     private let taskMapLock = NSLock()
+
+    private struct SpeedSample {
+        let timestamp: Date
+        let bytes: Int64
+    }
     
     override init() {
         // Create models directory: ~/Library/Application Support/com.simpletranscribe/models/
@@ -129,11 +137,24 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         
         // Update status
         updateModelStatus(modelID, to: .downloading)
-        downloadProgress[modelID] = 0.0
+        downloadError.removeValue(forKey: modelID)
+        resetProgressTracking(for: modelID, totalBytes: model.size)
         
         if model.isDirectory && !model.files.isEmpty {
-            // Directory-based model: download each file into a subdirectory
-            try await downloadDirectoryModel(modelID: modelID, model: model)
+            // Directory-based model: stream each file into a subdirectory so progress can report speed and ETA.
+            let task = Task {
+                try await downloadDirectoryModel(modelID: modelID, model: model)
+            }
+            directoryDownloadTasks[modelID] = task
+            defer { directoryDownloadTasks.removeValue(forKey: modelID) }
+            do {
+                try await task.value
+            } catch is CancellationError {
+                return
+            } catch {
+                logger.error("Directory model download failed for \(modelID, privacy: .public): \(error, privacy: .public)")
+                return
+            }
         } else {
             // Single-file model: use URLSession download delegate
             await withCheckedContinuation { continuation in
@@ -152,46 +173,101 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     private func downloadDirectoryModel(modelID: String, model: ModelInfo) async throws {
         let modelDir = modelsDirectory.appending(path: modelID, directoryHint: .isDirectory)
         let tempDir = modelsDirectory.appending(path: modelID + ".downloading", directoryHint: .isDirectory)
-        
-        // Clean up any previous incomplete download
-        try? FileManager.default.removeItem(at: tempDir)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
+        let fileManager = FileManager.default
+
+        try? fileManager.removeItem(at: tempDir)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
         let totalSize = model.files.reduce(0) { $0 + $1.size }
         var downloadedBytes: Int64 = 0
-        
-        for file in model.files {
-            let destURL = tempDir.appending(path: file.filename)
-            
-            // Download each file
-            let (tempURL, _) = try await URLSession.shared.download(from: file.downloadURL)
-            
-            // Verify SHA256 if available
-            try verifyFileIntegrity(at: tempURL, expectedHash: file.sha256)
-            
-            // Move to destination
-            try FileManager.default.moveItem(at: tempURL, to: destURL)
-            
-            downloadedBytes += file.size
-            let progress = Double(downloadedBytes) / Double(totalSize)
-            
+        let bufferSize = 64 * 1024
+
+        do {
+            for file in model.files {
+                try Task.checkCancellation()
+
+                let destinationURL = tempDir.appending(path: file.filename)
+                fileManager.createFile(atPath: destinationURL.path, contents: nil)
+                let handle = try FileHandle(forWritingTo: destinationURL)
+                var buffer = Data()
+                buffer.reserveCapacity(bufferSize)
+                var fileBytes: Int64 = 0
+
+                do {
+                    let request = URLRequest(url: file.downloadURL, timeoutInterval: 3600)
+                    let (bytes, _) = try await URLSession.shared.bytes(for: request)
+
+                    for try await byte in bytes {
+                        try Task.checkCancellation()
+                        buffer.append(byte)
+                        fileBytes += 1
+                        downloadedBytes += 1
+
+                        if buffer.count >= bufferSize {
+                            try handle.write(contentsOf: buffer)
+                            buffer.removeAll(keepingCapacity: true)
+                        }
+
+                        let now = Date()
+                        if now.timeIntervalSince(lastProgressUpdate[modelID] ?? .distantPast) >= 1.0 {
+                            lastProgressUpdate[modelID] = now
+                            let progress = buildDownloadProgress(
+                                for: modelID,
+                                receivedBytes: downloadedBytes,
+                                totalBytes: totalSize,
+                                now: now
+                            )
+                            await MainActor.run {
+                                self.downloadProgress[modelID] = progress
+                            }
+                        }
+                    }
+
+                    if !buffer.isEmpty {
+                        try handle.write(contentsOf: buffer)
+                    }
+                    try handle.close()
+                } catch {
+                    try? handle.close()
+                    throw error
+                }
+
+                logger.debug("Downloaded \(fileBytes, privacy: .public) bytes for \(file.filename, privacy: .public)")
+                try verifyFileIntegrity(at: destinationURL, expectedHash: file.sha256)
+            }
+
+            if fileManager.fileExists(atPath: modelDir.path) {
+                try fileManager.removeItem(at: modelDir)
+            }
+            try fileManager.moveItem(at: tempDir, to: modelDir)
+
             await MainActor.run {
-                self.downloadProgress[modelID] = progress
+                if let index = self.modelIndex[modelID] {
+                    self.availableModels[index].status = .downloaded
+                    self.availableModels[index].downloadedPath = modelDir
+                }
+                self.downloadError.removeValue(forKey: modelID)
+                self.downloadProgress[modelID] = DownloadProgress(
+                    fraction: 1.0,
+                    bytesPerSecond: self.downloadProgress[modelID]?.bytesPerSecond ?? 0,
+                    totalBytes: totalSize,
+                    receivedBytes: totalSize
+                )
             }
-        }
-        
-        // Atomic move: rename temp dir to final location
-        if FileManager.default.fileExists(atPath: modelDir.path) {
-            try FileManager.default.removeItem(at: modelDir)
-        }
-        try FileManager.default.moveItem(at: tempDir, to: modelDir)
-        
-        await MainActor.run {
-            if let index = self.modelIndex[modelID] {
-                self.availableModels[index].status = .downloaded
-                self.availableModels[index].downloadedPath = modelDir
+        } catch {
+            try? fileManager.removeItem(at: tempDir)
+
+            await MainActor.run {
+                if error is CancellationError {
+                    self.updateModelStatus(modelID, to: .notDownloaded)
+                    self.downloadError.removeValue(forKey: modelID)
+                } else {
+                    self.updateModelStatus(modelID, to: .failed)
+                    self.downloadError[modelID] = error.localizedDescription
+                }
+                self.clearProgressTracking(for: modelID)
             }
-            self.downloadProgress[modelID] = 1.0
+            throw error
         }
     }
     
@@ -199,8 +275,11 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     func cancelDownload(_ modelID: String) {
         downloadTasks[modelID]?.cancel()
         downloadTasks.removeValue(forKey: modelID)
-        downloadProgress.removeValue(forKey: modelID)
-        
+        directoryDownloadTasks[modelID]?.cancel()
+        directoryDownloadTasks.removeValue(forKey: modelID)
+        clearProgressTracking(for: modelID)
+        downloadError.removeValue(forKey: modelID)
+
         if let index = modelIndex[modelID] {
             availableModels[index].status = .notDownloaded
         }
@@ -223,6 +302,8 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         
         availableModels[index].status = .notDownloaded
         availableModels[index].downloadedPath = nil
+        clearProgressTracking(for: modelID)
+        downloadError.removeValue(forKey: modelID)
     }
     
     /// Get a model by ID (O(1) lookup)
@@ -275,6 +356,51 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         } catch {
             return 0
         }
+    }
+
+    private func resetProgressTracking(for modelID: String, totalBytes: Int64) {
+        lastProgressUpdate[modelID] = .distantPast
+        speedSamples[modelID] = []
+        downloadProgress[modelID] = DownloadProgress(
+            fraction: 0,
+            bytesPerSecond: 0,
+            totalBytes: totalBytes,
+            receivedBytes: 0
+        )
+    }
+
+    private func clearProgressTracking(for modelID: String) {
+        downloadProgress.removeValue(forKey: modelID)
+        lastProgressUpdate.removeValue(forKey: modelID)
+        speedSamples.removeValue(forKey: modelID)
+    }
+
+    private func buildDownloadProgress(
+        for modelID: String,
+        receivedBytes: Int64,
+        totalBytes: Int64,
+        now: Date = Date()
+    ) -> DownloadProgress {
+        let speed = computeSpeed(for: modelID, latestBytes: receivedBytes, now: now)
+        let fraction = totalBytes > 0 ? Double(receivedBytes) / Double(totalBytes) : 0
+        return DownloadProgress(
+            fraction: fraction,
+            bytesPerSecond: speed,
+            totalBytes: totalBytes,
+            receivedBytes: receivedBytes
+        )
+    }
+
+    private func computeSpeed(for modelID: String, latestBytes: Int64, now: Date) -> Double {
+        var samples = speedSamples[modelID] ?? []
+        samples.append(SpeedSample(timestamp: now, bytes: latestBytes))
+        samples.removeAll { now.timeIntervalSince($0.timestamp) > speedWindowSeconds }
+        speedSamples[modelID] = samples
+
+        guard samples.count >= 2, let first = samples.first else { return 0 }
+        let elapsed = now.timeIntervalSince(first.timestamp)
+        guard elapsed > 0 else { return 0 }
+        return Double(latestBytes - first.bytes) / elapsed
     }
     
     /// Validate that a file has a recognized GGML magic header
@@ -354,10 +480,18 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                     self.availableModels[index].status = .downloaded
                     self.availableModels[index].downloadedPath = destinationURL
                 }
-                
-                self.downloadProgress[modelID] = 1.0
+
+                let totalBytes = self.getFileSize(destinationURL)
+                self.downloadError.removeValue(forKey: modelID)
+                self.downloadProgress[modelID] = DownloadProgress(
+                    fraction: 1.0,
+                    bytesPerSecond: self.downloadProgress[modelID]?.bytesPerSecond ?? 0,
+                    totalBytes: totalBytes,
+                    receivedBytes: totalBytes
+                )
                 self.downloadTasks.removeValue(forKey: modelID)
                 self.lastProgressUpdate.removeValue(forKey: modelID)
+                self.speedSamples.removeValue(forKey: modelID)
                 self.removeTaskMapping(for: downloadTask.taskIdentifier)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
@@ -370,7 +504,7 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 self.updateModelStatus(modelID, to: .failed)
                 self.downloadError[modelID] = error.localizedDescription
                 self.downloadTasks.removeValue(forKey: modelID)
-                self.lastProgressUpdate.removeValue(forKey: modelID)
+                self.clearProgressTracking(for: modelID)
                 self.removeTaskMapping(for: downloadTask.taskIdentifier)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {
@@ -390,16 +524,22 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         guard let modelID = modelID(for: downloadTask.taskIdentifier) else { return }
         
         let now = Date()
-        let throttleInterval: TimeInterval = 0.2  // 5 Hz max
-        
+        let throttleInterval: TimeInterval = 1.0
+
         if let lastUpdate = lastProgressUpdate[modelID],
            now.timeIntervalSince(lastUpdate) < throttleInterval {
             return
         }
         lastProgressUpdate[modelID] = now
-        
-        let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-        
+
+        let totalBytes = max(totalBytesExpectedToWrite, 0)
+        let progress = self.buildDownloadProgress(
+            for: modelID,
+            receivedBytes: totalBytesWritten,
+            totalBytes: totalBytes,
+            now: now
+        )
+
         DispatchQueue.main.async {
             self.downloadProgress[modelID] = progress
         }
@@ -414,11 +554,16 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         guard let modelID = modelID(for: downloadTask.taskIdentifier) else { return }
         
         if let error = error {
+            let isCancelled = (error as NSError).code == NSURLErrorCancelled
             DispatchQueue.main.async {
-                self.updateModelStatus(modelID, to: .failed)
-                self.downloadError[modelID] = error.localizedDescription
+                self.updateModelStatus(modelID, to: isCancelled ? .notDownloaded : .failed)
+                if isCancelled {
+                    self.downloadError.removeValue(forKey: modelID)
+                } else {
+                    self.downloadError[modelID] = error.localizedDescription
+                }
                 self.downloadTasks.removeValue(forKey: modelID)
-                self.lastProgressUpdate.removeValue(forKey: modelID)
+                self.clearProgressTracking(for: modelID)
                 self.removeTaskMapping(for: downloadTask.taskIdentifier)
                 
                 if let continuation = self.downloadContinuations.removeValue(forKey: modelID) {

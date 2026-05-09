@@ -185,10 +185,21 @@ struct ModelRowView: View {
             if model.status == .downloading,
                let progress = modelService.downloadProgress[model.id] {
                 VStack(spacing: 4) {
-                    ProgressView(value: progress)
-                    Text("\(Int(progress * 100))%")
+                    ProgressView(value: progress.fraction)
+                    Text("\(Int(progress.fraction * 100))%")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                    HStack {
+                        Text(progress.speedString)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if !progress.etaString.isEmpty {
+                            Text(progress.etaString)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
             }
             

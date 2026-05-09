@@ -192,9 +192,12 @@ public sealed partial class ModelDownloadPage : UserControl
         // Progress bar for active downloads
         if (model.Status == ModelStatus.Downloading)
         {
+            var details = _modelService?.GetDownloadProgress(model.Id);
+            var fraction = details?.Fraction ?? model.DownloadProgress;
+
             var progressBar = new ProgressBar
             {
-                Value = model.DownloadProgress * 100,
+                Value = fraction * 100,
                 Maximum = 100,
                 Margin = new Thickness(0, 4, 0, 0)
             };
@@ -202,11 +205,42 @@ public sealed partial class ModelDownloadPage : UserControl
 
             outerStack.Children.Add(new TextBlock
             {
-                Text = $"{(int)(model.DownloadProgress * 100)}%",
+                Text = $"{(int)(fraction * 100)}%",
                 FontSize = 11,
                 Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 HorizontalAlignment = HorizontalAlignment.Center
             });
+
+            if (details != null)
+            {
+                var statusGrid = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+                statusGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                statusGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var speedText = new TextBlock
+                {
+                    Text = details.SpeedString,
+                    FontSize = 11,
+                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                };
+                Grid.SetColumn(speedText, 0);
+                statusGrid.Children.Add(speedText);
+
+                if (!string.IsNullOrEmpty(details.EtaString))
+                {
+                    var etaText = new TextBlock
+                    {
+                        Text = details.EtaString,
+                        FontSize = 11,
+                        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                        HorizontalAlignment = HorizontalAlignment.Right
+                    };
+                    Grid.SetColumn(etaText, 1);
+                    statusGrid.Children.Add(etaText);
+                }
+
+                outerStack.Children.Add(statusGrid);
+            }
         }
 
         // Error message with retry
