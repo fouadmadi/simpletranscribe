@@ -19,6 +19,7 @@ public sealed partial class SettingsPanel : UserControl
     public event EventHandler<bool>? RemoveFillersChanged;
     public event EventHandler<bool>? NumberFormattingChanged;
     public event EventHandler<bool>? AutoClearAfterPasteChanged;
+    public event EventHandler<double>? FontSizeChanged;
 
     private bool _suppressEvents;
     private bool _isRecordingHotKey;
@@ -269,6 +270,23 @@ public sealed partial class SettingsPanel : UserControl
     {
         if (_suppressEvents) return;
         AutoClearAfterPasteChanged?.Invoke(this, AutoClearCheckBox.IsChecked == true);
+    }
+
+    // --- Font size control ---
+
+    public void UpdateFontSize(double size)
+    {
+        _suppressEvents = true;
+        FontSizeSlider.Value = size;
+        FontSizeLabel.Text = $"{(int)size}pt";
+        _suppressEvents = false;
+    }
+
+    private void OnFontSizeChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        FontSizeLabel.Text = $"{(int)e.NewValue}pt";
+        if (_suppressEvents) return;
+        FontSizeChanged?.Invoke(this, e.NewValue);
     }
 
     private static string FormatHotKey(int modVKey, int vKey)

@@ -46,6 +46,7 @@ public sealed partial class MainWindow : Window
         Settings.RemoveFillersChanged += (_, v) => { _vm.PostProcessorConfig.RemoveFillersEnabled = v; _vm.PostProcessorConfig.Save(SaveSetting); };
         Settings.NumberFormattingChanged += (_, v) => { _vm.PostProcessorConfig.NumberFormattingEnabled = v; _vm.PostProcessorConfig.Save(SaveSetting); };
         Settings.AutoClearAfterPasteChanged += (_, v) => _vm.AutoClearAfterPaste = v;
+        Settings.FontSizeChanged += (_, size) => _vm.TranscriptFontSize = size;
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
@@ -142,6 +143,11 @@ public sealed partial class MainWindow : Window
                     UpdateStatusBar();
                     break;
 
+                case nameof(MainViewModel.TranscriptFontSize):
+                    TranscriptResults.TranscriptFontSize = _vm.TranscriptFontSize;
+                    Settings.UpdateFontSize(_vm.TranscriptFontSize);
+                    break;
+
                 case nameof(MainViewModel.HasDownloadedModels):
                     UpdateModelBanner();
                     break;
@@ -164,6 +170,8 @@ public sealed partial class MainWindow : Window
             _vm.PostProcessorConfig.NumberFormattingEnabled,
             _vm.AutoClearAfterPaste);
         TranscriptResults.Text = _vm.TranscribedText;
+        TranscriptResults.TranscriptFontSize = _vm.TranscriptFontSize;
+        Settings.UpdateFontSize(_vm.TranscriptFontSize);
         UpdateModelBanner();
         UpdateErrorBanner();
     }

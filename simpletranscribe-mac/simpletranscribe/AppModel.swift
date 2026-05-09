@@ -32,6 +32,12 @@ class AppModel {
         didSet { UserDefaults.standard.set(autoClearAfterPaste, forKey: "autoClearAfterPaste") }
     }
     var lastRecordingDuration: TimeInterval = 0
+    var transcriptFontSize: Double = {
+        let stored = UserDefaults.standard.double(forKey: "transcriptFontSize")
+        return stored == 0 ? 14.0 : stored
+    }() {
+        didSet { UserDefaults.standard.set(transcriptFontSize, forKey: "transcriptFontSize") }
+    }
     var selectedLanguage: String = UserDefaults.standard.string(forKey: "selectedLanguage") ?? "en" {
         didSet { UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage") }
     }

@@ -99,6 +99,21 @@
                           Checked="OnAutoClearChanged"
                           Unchecked="OnAutoClearChanged" />
             </StackPanel>
+
+            <!-- Font size control -->
+            <StackPanel Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Text Size" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Slider x:Name="FontSizeSlider"
+                            Minimum="11" Maximum="28" StepFrequency="1"
+                            Width="100"
+                            ValueChanged="OnFontSizeChanged" />
+                    <TextBlock x:Name="FontSizeLabel"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

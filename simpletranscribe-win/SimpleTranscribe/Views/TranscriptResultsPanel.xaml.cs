@@ -42,6 +42,12 @@ public sealed partial class TranscriptResultsPanel : UserControl
         }
     }
 
+    public double TranscriptFontSize
+    {
+        get => TranscriptTextBox.FontSize;
+        set => TranscriptTextBox.FontSize = value;
+    }
+
     private void OnTextChanged(object sender, TextChangedEventArgs e)
     {
         if (!_suppressEvents)

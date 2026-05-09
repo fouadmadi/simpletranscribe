@@ -34,6 +34,7 @@ struct ContentView: View {
                 streamingEnabled: $appModel.streamingEnabled,
                 postProcessorConfig: $appModel.postProcessorConfig,
                 autoClearAfterPaste: $appModel.autoClearAfterPaste,
+                transcriptFontSize: $appModel.transcriptFontSize,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
             )
@@ -59,6 +60,7 @@ struct ContentView: View {
                         showCopiedAlert: $showCopiedAlert,
                         liveTranscriptText: appModel.liveTranscriptText,
                         isRecording: appModel.isRecording,
+                        fontSize: appModel.transcriptFontSize,
                         onCopy: copyToClipboard,
                         onExport: { format in appModel.exportCurrentTranscript(format: format) }
                     )

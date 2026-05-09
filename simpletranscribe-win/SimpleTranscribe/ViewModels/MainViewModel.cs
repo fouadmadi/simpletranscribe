@@ -38,6 +38,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _lastRecordingDuration;
     [ObservableProperty] private int _wordCount;
     [ObservableProperty] private int _charCount;
+    [ObservableProperty] private double _transcriptFontSize;
 
     private StreamingTranscriber? _streamingTranscriber;
 
@@ -87,6 +88,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hotKeyModifierVKey = int.TryParse(GetSetting("hotKeyModifierVKey"), out var mod) ? mod : Win32Interop.VK_CONTROL;
         _streamingEnabled = GetSetting("streamingEnabled", "False") == "True";
         _autoClearAfterPaste = GetSetting("autoClearAfterPaste", "False") == "True";
+        _transcriptFontSize = double.TryParse(GetSetting("transcriptFontSize"), out var fs) ? fs : 14.0;
         PostProcessorConfig = PostProcessorConfig.Load(k => GetSetting(k));
 
         // Wire up audio buffer relay — feeds both accumulator and streaming transcriber
@@ -156,6 +158,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedLanguageChanged(string value) => SaveSetting("language", value);
     partial void OnStreamingEnabledChanged(bool value) => SaveSetting("streamingEnabled", value.ToString());
     partial void OnAutoClearAfterPasteChanged(bool value) => SaveSetting("autoClearAfterPaste", value.ToString());
+    partial void OnTranscriptFontSizeChanged(double value) => SaveSetting("transcriptFontSize", value.ToString());
     partial void OnTranscribedTextChanged(string value)
     {
         WordCount = string.IsNullOrEmpty(value) ? 0

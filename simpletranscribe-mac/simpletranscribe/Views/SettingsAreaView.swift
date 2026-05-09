@@ -78,6 +78,7 @@ struct SettingsAreaView: View {
     @Binding var streamingEnabled: Bool
     @Binding var postProcessorConfig: PostProcessorConfig
     @Binding var autoClearAfterPaste: Bool
+    @Binding var transcriptFontSize: Double
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
@@ -139,6 +140,18 @@ struct SettingsAreaView: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
                 .help("Clears the transcript box after each auto-paste")
+
+            HStack(spacing: 4) {
+                Text("Text Size")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Stepper("", value: $transcriptFontSize, in: 11...28, step: 1)
+                    .labelsHidden()
+                Text("\(Int(transcriptFontSize)) pt")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, alignment: .trailing)
+            }
 
             // Text processing toggles
             VStack(alignment: .leading, spacing: 2) {

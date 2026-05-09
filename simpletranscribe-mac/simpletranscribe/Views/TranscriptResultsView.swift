@@ -5,6 +5,7 @@ struct TranscriptResultsView: View {
     @Binding var showCopiedAlert: Bool
     var liveTranscriptText: String = ""
     var isRecording: Bool = false
+    var fontSize: Double = 14.0
     let onCopy: () -> Void
     let onExport: (ExportFormat) -> Void
 
@@ -12,7 +13,7 @@ struct TranscriptResultsView: View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
                 TextEditor(text: $transcribedText)
-                    .font(.body)
+                    .font(.system(size: fontSize))
                     .frame(minHeight: 75, maxHeight: .infinity)
 
                 if isRecording && !liveTranscriptText.isEmpty {
