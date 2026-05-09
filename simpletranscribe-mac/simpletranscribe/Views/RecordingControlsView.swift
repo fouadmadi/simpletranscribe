@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct RecordingControlsView: View {
@@ -7,6 +8,8 @@ struct RecordingControlsView: View {
     let canRecord: Bool
     let isLoadingModel: Bool
     let showTranscriptionStarted: Bool
+    let recordingElapsedSeconds: Int
+    let timeLimitWarning: Bool
     let onToggleRecording: () -> Void
     let onShowModelManager: () -> Void
 
@@ -34,6 +37,13 @@ struct RecordingControlsView: View {
                 .cornerRadius(4)
                 .help("Hold fn+Control to start recording, release to stop and transcribe")
 
+            if recordingElapsedSeconds > 0 {
+                Text(formattedElapsedTime)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(timeLimitWarning ? .orange : .secondary)
+                    .padding(.leading, 8)
+            }
+
             if isProcessing || isTranscribing {
                 ProgressView()
                     .scaleEffect(0.6)
@@ -60,5 +70,11 @@ struct RecordingControlsView: View {
         }
         .padding()
         .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private var formattedElapsedTime: String {
+        let minutes = recordingElapsedSeconds / 60
+        let seconds = recordingElapsedSeconds % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }

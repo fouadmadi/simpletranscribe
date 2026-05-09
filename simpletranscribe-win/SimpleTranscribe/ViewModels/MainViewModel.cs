@@ -35,6 +35,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _liveTranscriptText = "";
     [ObservableProperty] private bool _streamingEnabled;
     [ObservableProperty] private bool _autoClearAfterPaste;
+    [ObservableProperty] private bool _recordingTimeLimitWarning;
+    [ObservableProperty] private bool _recordingTimeLimitReached;
+    [ObservableProperty] private string _recordingElapsedLabel = "";
     [ObservableProperty] private double _lastRecordingDuration;
     [ObservableProperty] private int _wordCount;
     [ObservableProperty] private int _charCount;
@@ -42,6 +45,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _activeComputeBackend = "CPU";
 
     private StreamingTranscriber? _streamingTranscriber;
+    private System.Timers.Timer? _recordingTimer;
 
     [ObservableProperty] private string _selectedLanguage;
     [ObservableProperty] private string _selectedModelId;
@@ -249,6 +253,59 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex) { ErrorMessage = $"Failed to load model: {ex.Message}"; }
     }
 
+    private void StartRecordingTimer()
+    {
+        StopRecordingTimer();
+        RecordingTimeLimitWarning = false;
+        RecordingTimeLimitReached = false;
+        RecordingElapsedLabel = "00:00";
+        _recordingTimer = new System.Timers.Timer(1000);
+        _recordingTimer.Elapsed += (_, _) => CheckRecordingTimeLimit();
+        _recordingTimer.AutoReset = true;
+        _recordingTimer.Start();
+    }
+
+    private void StopRecordingTimer()
+    {
+        if (_recordingTimer != null)
+        {
+            _recordingTimer.Stop();
+            _recordingTimer.Dispose();
+            _recordingTimer = null;
+        }
+        RecordingElapsedLabel = "";
+        RecordingTimeLimitWarning = false;
+    }
+
+    private void CheckRecordingTimeLimit()
+    {
+        if (!IsRecording || !_recordingStartTime.HasValue)
+            return;
+
+        var count = _transcriptionManager.AccumulatedSampleCount;
+        var elapsedSeconds = Math.Max(0, count / 16_000);
+        var mm = elapsedSeconds / 60;
+        var ss = elapsedSeconds % 60;
+
+        _syncContext?.Post(_ =>
+        {
+            RecordingElapsedLabel = $"{mm:D2}:{ss:D2}";
+
+            if (count >= TranscriptionManager.MaxSamples)
+            {
+                RecordingTimeLimitReached = true;
+                RecordingTimeLimitWarning = false;
+                StopRecordingAndTranscribe(autoPaste: true);
+                return;
+            }
+
+            if (count >= TranscriptionManager.WarningSamples)
+            {
+                RecordingTimeLimitWarning = true;
+            }
+        }, null);
+    }
+
     // --- Recording ---
 
     [RelayCommand]
@@ -271,10 +328,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _transcriptionManager.StartTranscription(SelectedLanguage);
             IsRecording = true;
-            _recordingStartTime = DateTime.Now;
+            _recordingStartTime = DateTime.UtcNow;
             ShowTranscriptionStarted = true;
             OverlayState = OverlayState.Recording;
             _audioManager.StartRecording(SelectedDeviceId);
+            StartRecordingTimer();
             SoundManager.PlayRecordingStarted();
 
             // Start streaming preview if enabled and a Whisper model is loaded
@@ -299,6 +357,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private async void StopRecordingAndTranscribe(bool autoPaste)
     {
+        StopRecordingTimer();
         _audioManager.StopRecording();
         IsRecording = false;
         IsProcessing = true;
@@ -327,7 +386,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     : TranscribedText + " " + processed;
 
                 var duration = _recordingStartTime.HasValue
-                    ? (DateTime.Now - _recordingStartTime.Value).TotalSeconds
+                    ? (DateTime.UtcNow - _recordingStartTime.Value).TotalSeconds
                     : 0;
                 LastRecordingDuration = duration;
                 OnPropertyChanged(nameof(LastRecordingDurationLabel));

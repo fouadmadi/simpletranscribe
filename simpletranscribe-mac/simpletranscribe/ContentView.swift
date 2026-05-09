@@ -19,6 +19,8 @@ struct ContentView: View {
                 canRecord: appModel.canRecord,
                 isLoadingModel: appModel.isLoadingModel,
                 showTranscriptionStarted: appModel.showTranscriptionStarted,
+                recordingElapsedSeconds: appModel.recordingElapsedSeconds,
+                timeLimitWarning: appModel.recordingTimeLimitWarning,
                 onToggleRecording: { appModel.toggleRecording() },
                 onShowModelManager: { showModelManager = true }
             )

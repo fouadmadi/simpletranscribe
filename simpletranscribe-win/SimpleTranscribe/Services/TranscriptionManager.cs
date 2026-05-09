@@ -30,7 +30,8 @@ public class TranscriptionManager : IDisposable
     private bool _disposed;
 
     // 30 minutes at 16kHz — matches macOS maxSamples
-    private const int MaxSamples = 30 * 60 * 16_000;
+    public const int MaxSamples = 30 * 60 * 16_000;
+    public const int WarningSamples = MaxSamples - (2 * 60 * 16_000);
 
     // Expose for streaming transcriber (read-only via properties)
     internal nint SharedCtx => Volatile.Read(ref _ctx);
@@ -73,6 +74,16 @@ public class TranscriptionManager : IDisposable
     }
 
     public bool IsModelLoaded => Volatile.Read(ref _ctx) != nint.Zero || _parakeetRecognizer != null;
+
+    public int AccumulatedSampleCount
+    {
+        get
+        {
+            _audioLock.Wait();
+            try { return _accumulatedAudio.Count; }
+            finally { _audioLock.Release(); }
+        }
+    }
 
     /// <summary>The compute backend used for Parakeet inference (e.g. "DirectML", "CPU").</summary>
     public string ActiveComputeBackend { get; private set; } = "CPU";

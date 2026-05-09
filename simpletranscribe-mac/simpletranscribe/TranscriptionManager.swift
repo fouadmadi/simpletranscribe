@@ -261,7 +261,14 @@ class TranscriptionManager {
         }
     }
         
-    private static let maxSamples = 30 * 60 * 16_000  // 30 minutes at 16kHz
+    static let maxSamples = 30 * 60 * 16_000  // 30 minutes at 16kHz
+    static let warningSamples = maxSamples - (2 * 60 * 16_000)
+
+    var accumulatedSampleCount: Int {
+        audioLock.lock()
+        defer { audioLock.unlock() }
+        return accumulatedAudio.count
+    }
 
     func appendAudio(buffer: [Float]) {
         audioLock.lock()

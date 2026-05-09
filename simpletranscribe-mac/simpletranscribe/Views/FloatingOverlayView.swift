@@ -3,6 +3,7 @@ import SwiftUI
 enum OverlayState: Equatable {
     case idle
     case recording
+    case recordingWarning
     case transcribing
     case done
     case error(String)
@@ -33,6 +34,21 @@ struct FloatingOverlayView: View {
                 Text("Recording...")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
+
+            case .recordingWarning:
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 12, height: 12)
+                    .opacity(pulseOpacity)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+                            pulseOpacity = 0.3
+                        }
+                    }
+                    .onDisappear { pulseOpacity = 1.0 }
+                Text("Recording — 2 min left")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.orange)
 
             case .transcribing:
                 ProgressView()

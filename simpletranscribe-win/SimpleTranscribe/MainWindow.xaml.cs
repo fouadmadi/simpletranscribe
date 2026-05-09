@@ -1,4 +1,6 @@
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using SimpleTranscribe.Interop;
 using SimpleTranscribe.ViewModels;
 
@@ -140,7 +142,10 @@ public sealed partial class MainWindow : Window
                 case nameof(MainViewModel.WordCount):
                 case nameof(MainViewModel.CharCount):
                 case nameof(MainViewModel.LastRecordingDuration):
+                case nameof(MainViewModel.RecordingElapsedLabel):
+                case nameof(MainViewModel.RecordingTimeLimitWarning):
                     UpdateStatusBar();
+                    UpdateTimeLimitWarningBar();
                     break;
 
                 case nameof(MainViewModel.TranscriptFontSize):
@@ -179,6 +184,8 @@ public sealed partial class MainWindow : Window
         Settings.UpdateBackend(_vm.ActiveComputeBackend);
         UpdateModelBanner();
         UpdateErrorBanner();
+        UpdateStatusBar();
+        UpdateTimeLimitWarningBar();
     }
 
     /// <summary>Delegate passed to PostProcessorConfig.Save so it can persist via the VM's settings store.</summary>
@@ -234,6 +241,18 @@ public sealed partial class MainWindow : Window
         var label = _vm.LastRecordingDurationLabel;
         DurationText.Text = label;
         DurationText.Visibility = string.IsNullOrEmpty(label) ? Visibility.Collapsed : Visibility.Visible;
+
+        RecordingElapsedText.Text = _vm.RecordingElapsedLabel;
+        RecordingElapsedText.Visibility = string.IsNullOrEmpty(_vm.RecordingElapsedLabel)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        RecordingElapsedText.Foreground = new SolidColorBrush(
+            _vm.RecordingTimeLimitWarning ? Colors.Orange : Colors.Gray);
+    }
+
+    private void UpdateTimeLimitWarningBar()
+    {
+        TimeLimitWarningBar.IsOpen = _vm.RecordingTimeLimitWarning;
     }
 
     private void UpdateRecordingControls()

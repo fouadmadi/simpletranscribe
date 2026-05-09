@@ -62,6 +62,9 @@ class AppModel {
     // Feedback properties
     var showTranscriptionStarted: Bool = false
     var overlayState: OverlayState = .idle
+    var recordingTimeLimitWarning: Bool = false
+    var recordingTimeLimitReached: Bool = false
+    var recordingElapsedSeconds: Int = 0
 
     // Device listener
     private var deviceListener: AudioDeviceListener?
@@ -102,6 +105,7 @@ class AppModel {
     @ObservationIgnored private var previousApp: NSRunningApplication?
     @ObservationIgnored private var recordingStartTime: Date?
     @ObservationIgnored private var streamingTranscriber: StreamingTranscriber?
+    @ObservationIgnored private var recordingTimer: Timer?
 
     var currentModel: ModelInfo? {
         modelService.getModel(selectedModelID)
@@ -281,6 +285,42 @@ class AppModel {
         }
     }
 
+    private func startRecordingTimer() {
+        recordingTimer?.invalidate()
+        recordingElapsedSeconds = 0
+        recordingTimeLimitWarning = false
+        recordingTimeLimitReached = false
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.checkRecordingTimeLimit()
+        }
+    }
+
+    private func stopRecordingTimer() {
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        recordingElapsedSeconds = 0
+        recordingTimeLimitWarning = false
+    }
+
+    private func checkRecordingTimeLimit() {
+        guard isRecording, let transcriptionManager else { return }
+
+        let sampleCount = transcriptionManager.accumulatedSampleCount
+        recordingElapsedSeconds = sampleCount / 16_000
+
+        if sampleCount >= TranscriptionManager.maxSamples {
+            recordingTimeLimitReached = true
+            recordingTimeLimitWarning = false
+            stopRecordingAndTranscribe(autoPaste: true)
+            return
+        }
+
+        if sampleCount >= TranscriptionManager.warningSamples {
+            recordingTimeLimitWarning = true
+            overlayState = .recordingWarning
+        }
+    }
+
     func startRecording() {
         guard canRecord, !isRecording, !isProcessing else { return }
         guard let audioManager, let transcriptionManager else { return }
@@ -305,6 +345,7 @@ class AppModel {
                 self.showTranscriptionStarted = true
                 self.overlayState = .recording
                 try audioManager.startRecording(device: self.selectedInputDevice)
+                self.startRecordingTimer()
                 SoundManager.playRecordingStarted()
 
                 // Start streaming preview for Whisper models
@@ -327,6 +368,7 @@ class AppModel {
     }
 
     func stopRecordingAndTranscribe(autoPaste: Bool = false) {
+        stopRecordingTimer()
         guard let audioManager, let transcriptionManager else { return }
 
         audioManager.stopRecording()

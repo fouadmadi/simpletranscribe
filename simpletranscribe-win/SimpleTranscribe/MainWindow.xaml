@@ -22,10 +22,20 @@
         <Border Grid.Row="3" Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
         <!-- Transcript area: results + optional history side panel -->
-        <Grid Grid.Row="4" ColumnDefinitions="*,Auto">
-            <views:TranscriptResultsPanel x:Name="TranscriptResults" Grid.Column="0" />
+        <Grid Grid.Row="4" RowDefinitions="Auto,*" ColumnDefinitions="*,Auto">
+            <InfoBar x:Name="TimeLimitWarningBar"
+                     Grid.Row="0"
+                     Grid.ColumnSpan="2"
+                     IsOpen="False"
+                     Severity="Warning"
+                     Title="Approaching recording limit"
+                     Message="Less than 2 minutes of recording time remaining."
+                     IsClosable="False"
+                     Margin="16,16,16,0" />
 
-            <Border Grid.Column="1" x:Name="HistoryBorder"
+            <views:TranscriptResultsPanel x:Name="TranscriptResults" Grid.Row="1" Grid.Column="0" />
+
+            <Border Grid.Row="1" Grid.Column="1" x:Name="HistoryBorder"
                     Width="280"
                     Visibility="Collapsed"
                     BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
@@ -47,6 +57,9 @@
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        Visibility="Collapsed" />
             <TextBlock x:Name="DurationText" FontSize="11"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Visibility="Collapsed" />
+            <TextBlock x:Name="RecordingElapsedText" FontSize="11"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        Visibility="Collapsed" />
         </StackPanel>
