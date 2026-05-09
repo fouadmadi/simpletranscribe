@@ -148,6 +148,10 @@ public sealed partial class MainWindow : Window
                     UpdateTimeLimitWarningBar();
                     break;
 
+                case nameof(MainViewModel.PasteFailedMessage):
+                    UpdatePasteFailedBar();
+                    break;
+
                 case nameof(MainViewModel.TranscriptFontSize):
                     TranscriptResults.TranscriptFontSize = _vm.TranscriptFontSize;
                     Settings.UpdateFontSize(_vm.TranscriptFontSize);
@@ -186,6 +190,7 @@ public sealed partial class MainWindow : Window
         UpdateErrorBanner();
         UpdateStatusBar();
         UpdateTimeLimitWarningBar();
+        UpdatePasteFailedBar();
     }
 
     /// <summary>Delegate passed to PostProcessorConfig.Save so it can persist via the VM's settings store.</summary>
@@ -253,6 +258,12 @@ public sealed partial class MainWindow : Window
     private void UpdateTimeLimitWarningBar()
     {
         TimeLimitWarningBar.IsOpen = _vm.RecordingTimeLimitWarning;
+    }
+
+    private void UpdatePasteFailedBar()
+    {
+        PasteFailedBar.IsOpen = !string.IsNullOrEmpty(_vm.PasteFailedMessage);
+        PasteFailedBar.Message = _vm.PasteFailedMessage;
     }
 
     private void UpdateRecordingControls()

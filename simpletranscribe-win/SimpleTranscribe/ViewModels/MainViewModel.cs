@@ -38,6 +38,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _recordingTimeLimitWarning;
     [ObservableProperty] private bool _recordingTimeLimitReached;
     [ObservableProperty] private string _recordingElapsedLabel = "";
+    [ObservableProperty] private string _pasteFailedMessage = "";
     [ObservableProperty] private double _lastRecordingDuration;
     [ObservableProperty] private int _wordCount;
     [ObservableProperty] private int _charCount;
@@ -306,6 +307,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }, null);
     }
 
+    private async Task ClearPasteFailedMessageAsync()
+    {
+        var message = PasteFailedMessage;
+        await Task.Delay(4000);
+        if (PasteFailedMessage == message)
+            PasteFailedMessage = "";
+    }
+
     // --- Recording ---
 
     [RelayCommand]
@@ -405,8 +414,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             if (autoPaste && !string.IsNullOrEmpty(processed))
             {
-                PasteService.CopyAndPaste(processed);
-                if (AutoClearAfterPaste)
+                bool pasted = PasteService.CopyAndPaste(processed);
+                if (!pasted)
+                {
+                    PasteFailedMessage = "Auto-paste failed — press Ctrl+V to paste";
+                    _ = ClearPasteFailedMessageAsync();
+                }
+                else if (AutoClearAfterPaste)
                 {
                     await Task.Delay(300);
                     TranscribedText = "";

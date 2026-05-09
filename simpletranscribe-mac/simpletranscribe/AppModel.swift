@@ -62,6 +62,7 @@ class AppModel {
     // Feedback properties
     var showTranscriptionStarted: Bool = false
     var overlayState: OverlayState = .idle
+    var pasteFailedMessage: String = ""
     var recordingTimeLimitWarning: Bool = false
     var recordingTimeLimitReached: Bool = false
     var recordingElapsedSeconds: Int = 0
@@ -106,6 +107,7 @@ class AppModel {
     @ObservationIgnored private var recordingStartTime: Date?
     @ObservationIgnored private var streamingTranscriber: StreamingTranscriber?
     @ObservationIgnored private var recordingTimer: Timer?
+    @ObservationIgnored private var pasteFailedWorkItem: DispatchWorkItem?
 
     var currentModel: ModelInfo? {
         modelService.getModel(selectedModelID)
@@ -425,10 +427,24 @@ class AppModel {
                     if let target = self.previousApp, !target.isTerminated {
                         target.activate()
                     }
-                    PasteService.copyAndPaste(processed)
-                    if autoClearAfterPaste {
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        transcribedText = ""
+                    PasteService.copyAndPaste(processed) { [weak self] success in
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            if success {
+                                guard self.autoClearAfterPaste else { return }
+                                Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 300_000_000)
+                                    self.transcribedText = ""
+                                }
+                            } else {
+                                self.pasteFailedMessage = self.accessibilityGranted
+                                    ? "Auto-paste failed — press ⌘V to paste"
+                                    : "Auto-paste failed — grant Accessibility or press ⌘V"
+                                self.overlayState = .error("Paste failed — press ⌘V")
+                                self.autoClearOverlay(after: 4.0)
+                                self.autoClearPasteFailedMessage()
+                            }
+                        }
                     }
                 }
             } catch {
@@ -578,6 +594,15 @@ class AppModel {
     // MARK: - Overlay Helpers
 
     private var overlayClearWorkItem: DispatchWorkItem?
+
+    private func autoClearPasteFailedMessage() {
+        pasteFailedWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pasteFailedMessage = ""
+        }
+        pasteFailedWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: work)
+    }
 
     private func autoClearOverlay(after seconds: TimeInterval) {
         overlayClearWorkItem?.cancel()

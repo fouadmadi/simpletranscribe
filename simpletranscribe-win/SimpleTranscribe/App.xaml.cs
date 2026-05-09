@@ -12,6 +12,7 @@ public partial class App : Application
     private MainViewModel? _vm;
     private TrayIconManager? _trayIcon;
     private FloatingOverlayWindow? _overlay;
+    private CancellationTokenSource? _pasteFailedTooltipCts;
 
     public App()
     {
@@ -32,10 +33,13 @@ public partial class App : Application
             if (e.PropertyName is nameof(MainViewModel.IsRecording)
                                or nameof(MainViewModel.IsProcessing))
             {
-                var state = _vm.IsRecording ? "Recording..."
-                          : _vm.IsProcessing ? "Transcribing..."
-                          : "Idle";
-                _trayIcon?.UpdateTooltip($"SimpleTranscribe - {state}");
+                if (string.IsNullOrEmpty(_vm.PasteFailedMessage))
+                    _trayIcon?.UpdateTooltip(CurrentTooltipText());
+            }
+            else if (e.PropertyName == nameof(MainViewModel.PasteFailedMessage) &&
+                     !string.IsNullOrEmpty(_vm.PasteFailedMessage))
+            {
+                _ = ShowPasteFailedTooltipAsync();
             }
         };
 
@@ -111,6 +115,37 @@ public partial class App : Application
         return (Interop.Win32Interop.LoadIconW(0, Interop.Win32Interop.IDI_APPLICATION), false);
     }
 
+    private string CurrentTooltipText()
+    {
+        var state = _vm?.IsRecording == true ? "Recording..."
+                  : _vm?.IsProcessing == true ? "Transcribing..."
+                  : "Idle";
+        return $"SimpleTranscribe - {state}";
+    }
+
+    private async Task ShowPasteFailedTooltipAsync()
+    {
+        if (_trayIcon is null)
+            return;
+
+        _pasteFailedTooltipCts?.Cancel();
+        _pasteFailedTooltipCts?.Dispose();
+        _pasteFailedTooltipCts = new CancellationTokenSource();
+        var token = _pasteFailedTooltipCts.Token;
+
+        _trayIcon.UpdateTooltip("SimpleTranscribe - Press Ctrl+V to paste");
+
+        try
+        {
+            await Task.Delay(4000, token);
+            if (!token.IsCancellationRequested)
+                _trayIcon.UpdateTooltip(CurrentTooltipText());
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
     private void ShowMainWindow()
     {
         _window?.ShowAndRestore();
@@ -118,6 +153,10 @@ public partial class App : Application
 
     internal void Quit()
     {
+        _pasteFailedTooltipCts?.Cancel();
+        _pasteFailedTooltipCts?.Dispose();
+        _pasteFailedTooltipCts = null;
+
         _trayIcon?.Dispose();
         _trayIcon = null;
 

@@ -56,6 +56,8 @@ struct ContentView: View {
 
             Divider()
 
+            pasteFailedBanner
+
             HSplitView {
                 VStack(spacing: 0) {
                     TranscriptResultsView(
@@ -172,6 +174,29 @@ struct ContentView: View {
                 .font(.caption)
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var pasteFailedBanner: some View {
+        if !appModel.pasteFailedMessage.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "clipboard.fill")
+                    .foregroundColor(.orange)
+                Text(appModel.pasteFailedMessage)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Copy Again") {
+                    copyToClipboard()
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(Color.orange.opacity(0.1))
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(.easeInOut, value: appModel.pasteFailedMessage)
         }
     }
 

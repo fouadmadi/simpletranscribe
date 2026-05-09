@@ -15,13 +15,13 @@ public static class PasteService
     /// <summary>
     /// Copy text to clipboard and simulate Ctrl+V to paste at cursor.
     /// </summary>
-    public static void CopyAndPaste(string text)
+    public static bool CopyAndPaste(string text)
     {
         if (!SetClipboardText(text))
-            return;
+            return false;
 
-        // Small delay to ensure clipboard is populated before simulating paste
-        Task.Delay(150).ContinueWith(_ => SimulateCtrlV(), TaskScheduler.Default);
+        Thread.Sleep(150);
+        return SimulateCtrlV();
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ public static class PasteService
     /// <summary>
     /// Simulate Ctrl+V keystroke via SendInput.
     /// </summary>
-    private static void SimulateCtrlV()
+    private static bool SimulateCtrlV()
     {
         var inputs = new INPUT[]
         {
@@ -118,10 +118,6 @@ public static class PasteService
         };
 
         var sent = Win32Interop.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
-        if (sent != inputs.Length)
-        {
-            // SendInput failed (e.g., UIPI blocked input to an elevated window).
-            // Text remains on clipboard for manual Ctrl+V.
-        }
+        return sent == inputs.Length;
     }
 }

@@ -15,7 +15,7 @@ enum PasteService {
     private static let logger = Logger(subsystem: "com.simpletranscribe", category: "Paste")
 
     /// Copy text to pasteboard and attempt to paste it at the cursor.
-    static func copyAndPaste(_ text: String) {
+    static func copyAndPaste(_ text: String, completion: @escaping (Bool) -> Void) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let didSet = pasteboard.setString(text, forType: .string)
@@ -26,22 +26,30 @@ enum PasteService {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            var succeeded = false
+
             logger.debug("attempting CGEvent paste...")
             if pasteWithCGEvent() {
                 logger.debug("CGEvent paste succeeded")
-                return
+                succeeded = true
+            } else {
+                logger.debug("CGEvent failed, trying AppleScript...")
+                if pasteWithAppleScript() {
+                    logger.debug("AppleScript paste succeeded")
+                    succeeded = true
+                } else {
+                    logger.debug("AppleScript failed, trying osascript process...")
+                    if pasteWithOsascript() {
+                        logger.debug("osascript paste succeeded")
+                        succeeded = true
+                    }
+                }
             }
-            logger.debug("CGEvent failed, trying AppleScript...")
-            if pasteWithAppleScript() {
-                logger.debug("AppleScript paste succeeded")
-                return
+
+            if !succeeded {
+                logger.error("ALL paste methods failed — text is on clipboard, user can ⌘V manually")
             }
-            logger.debug("AppleScript failed, trying osascript process...")
-            if pasteWithOsascript() {
-                logger.debug("osascript paste succeeded")
-                return
-            }
-            logger.error("ALL paste methods failed — text is on clipboard, user can ⌘V manually")
+            completion(succeeded)
         }
     }
 

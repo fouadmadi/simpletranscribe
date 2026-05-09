@@ -23,15 +23,19 @@
 
         <!-- Transcript area: results + optional history side panel -->
         <Grid Grid.Row="4" RowDefinitions="Auto,*" ColumnDefinitions="*,Auto">
-            <InfoBar x:Name="TimeLimitWarningBar"
-                     Grid.Row="0"
-                     Grid.ColumnSpan="2"
-                     IsOpen="False"
-                     Severity="Warning"
-                     Title="Approaching recording limit"
-                     Message="Less than 2 minutes of recording time remaining."
-                     IsClosable="False"
-                     Margin="16,16,16,0" />
+            <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Spacing="8" Margin="16,16,16,0">
+                <InfoBar x:Name="TimeLimitWarningBar"
+                         IsOpen="False"
+                         Severity="Warning"
+                         Title="Approaching recording limit"
+                         Message="Less than 2 minutes of recording time remaining."
+                         IsClosable="False" />
+                <InfoBar x:Name="PasteFailedBar"
+                         IsOpen="False"
+                         Severity="Warning"
+                         Title="Auto-paste failed"
+                         IsClosable="False" />
+            </StackPanel>
 
             <views:TranscriptResultsPanel x:Name="TranscriptResults" Grid.Row="1" Grid.Column="0" />
 
