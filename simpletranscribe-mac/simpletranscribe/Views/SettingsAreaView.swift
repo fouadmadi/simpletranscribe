@@ -81,6 +81,7 @@ struct SettingsAreaView: View {
     @Binding var transcriptFontSize: Double
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
+    let activeComputeBackend: String
 
     var availableLanguages: [SupportedLanguage] {
         SupportedLanguages.available(for: selectedModelID)
@@ -106,15 +107,23 @@ struct SettingsAreaView: View {
                     .font(.caption)
             }
 
-            Picker("Model", selection: $selectedModelID) {
-                if downloadedModels.isEmpty {
-                    Text("No models downloaded").tag("")
+            VStack(alignment: .leading, spacing: 2) {
+                Picker("Model", selection: $selectedModelID) {
+                    if downloadedModels.isEmpty {
+                        Text("No models downloaded").tag("")
+                    }
+                    ForEach(downloadedModels) { model in
+                        Text(model.name).tag(model.id)
+                    }
                 }
-                ForEach(downloadedModels) { model in
-                    Text(model.name).tag(model.id)
+                .frame(maxWidth: 200)
+
+                if activeComputeBackend != "CPU" {
+                    Text("⚡ \(activeComputeBackend)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.green)
                 }
             }
-            .frame(maxWidth: 200)
 
             Picker("Language", selection: $selectedLanguage) {
                 ForEach(availableLanguages) { lang in

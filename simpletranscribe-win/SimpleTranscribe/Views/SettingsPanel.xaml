@@ -31,6 +31,10 @@
                           Width="200"
                           SelectionChanged="OnModelChanged"
                           PlaceholderText="No models downloaded" />
+                <TextBlock x:Name="BackendBadgeText"
+                           FontSize="11"
+                           Foreground="Green"
+                           Visibility="Collapsed" />
             </StackPanel>
 
             <!-- Language picker -->

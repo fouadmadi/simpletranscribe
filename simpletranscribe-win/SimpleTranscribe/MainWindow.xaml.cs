@@ -148,6 +148,10 @@ public sealed partial class MainWindow : Window
                     Settings.UpdateFontSize(_vm.TranscriptFontSize);
                     break;
 
+                case nameof(MainViewModel.ActiveComputeBackend):
+                    Settings.UpdateBackend(_vm.ActiveComputeBackend);
+                    break;
+
                 case nameof(MainViewModel.HasDownloadedModels):
                     UpdateModelBanner();
                     break;
@@ -172,6 +176,7 @@ public sealed partial class MainWindow : Window
         TranscriptResults.Text = _vm.TranscribedText;
         TranscriptResults.TranscriptFontSize = _vm.TranscriptFontSize;
         Settings.UpdateFontSize(_vm.TranscriptFontSize);
+        Settings.UpdateBackend(_vm.ActiveComputeBackend);
         UpdateModelBanner();
         UpdateErrorBanner();
     }

@@ -9,6 +9,9 @@ class TranscriptionManager {
     
     var isTranscribing = false
     
+    /// The compute backend currently in use for inference (e.g. "CoreML", "CPU").
+    var activeComputeBackend: String = "CPU"
+    
     // For streaming — ignored to avoid observation overhead on the audio thread
     @ObservationIgnored private var accumulatedAudio: [Float] = []
     private let audioLock = NSLock()
@@ -187,31 +190,44 @@ class TranscriptionManager {
         let numThreads = max(1, ProcessInfo.processInfo.activeProcessorCount)
         
         let recognizer = await Task.detached(priority: .userInitiated) {
-            let transducerConfig = sherpaOnnxOfflineTransducerModelConfig(
-                encoder: encoderPath,
-                decoder: decoderPath,
-                joiner: joinerPath
-            )
-            
-            let modelConfig = sherpaOnnxOfflineModelConfig(
-                tokens: tokensPath,
-                transducer: transducerConfig,
-                numThreads: numThreads,
-                provider: "cpu"
-            )
-            
-            let featConfig = sherpaOnnxFeatureConfig(sampleRate: 16000, featureDim: 80)
-            
-            var config = sherpaOnnxOfflineRecognizerConfig(
-                featConfig: featConfig,
-                modelConfig: modelConfig
-            )
-            
-            return SherpaOnnxOfflineRecognizer(config: &config)
+            // On Apple Silicon, prefer CoreML for faster ONNX inference; fall back to CPU
+            #if arch(arm64)
+            let providers = ["coreml", "cpu"]
+            #else
+            let providers = ["cpu"]
+            #endif
+
+            for provider in providers {
+                let transducerConfig = sherpaOnnxOfflineTransducerModelConfig(
+                    encoder: encoderPath,
+                    decoder: decoderPath,
+                    joiner: joinerPath
+                )
+
+                let modelConfig = sherpaOnnxOfflineModelConfig(
+                    tokens: tokensPath,
+                    transducer: transducerConfig,
+                    numThreads: numThreads,
+                    provider: provider
+                )
+
+                let featConfig = sherpaOnnxFeatureConfig(sampleRate: 16000, featureDim: 80)
+
+                var config = sherpaOnnxOfflineRecognizerConfig(
+                    featConfig: featConfig,
+                    modelConfig: modelConfig
+                )
+
+                if let r = SherpaOnnxOfflineRecognizer(config: &config) {
+                    return (recognizer: r, provider: provider)
+                }
+            }
+            return nil as (recognizer: SherpaOnnxOfflineRecognizer, provider: String)?
         }.value
-        
+
         await MainActor.run {
-            self.parakeetRecognizer = recognizer
+            self.parakeetRecognizer = recognizer?.recognizer
+            self.activeComputeBackend = recognizer?.provider == "coreml" ? "CoreML" : "CPU"
         }
     }
     #else

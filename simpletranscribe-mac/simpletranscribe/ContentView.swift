@@ -36,7 +36,8 @@ struct ContentView: View {
                 autoClearAfterPaste: $appModel.autoClearAfterPaste,
                 transcriptFontSize: $appModel.transcriptFontSize,
                 availableInputDevices: appModel.availableInputDevices,
-                downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
+                downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable },
+                activeComputeBackend: appModel.activeComputeBackend
             )
 
             if !appModel.deviceSwitchMessage.isEmpty {

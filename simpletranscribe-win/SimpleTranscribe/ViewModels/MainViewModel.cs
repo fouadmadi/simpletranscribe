@@ -39,6 +39,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _wordCount;
     [ObservableProperty] private int _charCount;
     [ObservableProperty] private double _transcriptFontSize;
+    [ObservableProperty] private string _activeComputeBackend = "CPU";
 
     private StreamingTranscriber? _streamingTranscriber;
 
@@ -220,6 +221,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             var modelType = model?.ModelType ?? ModelType.Whisper;
             await _transcriptionManager.LoadModelAsync(modelPath, modelType);
             ModelLoaded = true;
+            ActiveComputeBackend = _transcriptionManager.ActiveComputeBackend;
         }
         catch (Exception ex)
         {

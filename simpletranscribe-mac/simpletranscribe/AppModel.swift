@@ -119,6 +119,10 @@ class AppModel {
         transcriptionManager?.isTranscribing ?? false
     }
 
+    var activeComputeBackend: String {
+        transcriptionManager?.activeComputeBackend ?? "CPU"
+    }
+
     /// Ensures the currently selected language is valid for the newly selected model.
     /// Falls back to "en" if not, and posts a device-switch style message.
     private func validateLanguageForModel() {

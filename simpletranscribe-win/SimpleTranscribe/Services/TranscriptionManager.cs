@@ -74,6 +74,9 @@ public class TranscriptionManager : IDisposable
 
     public bool IsModelLoaded => Volatile.Read(ref _ctx) != nint.Zero || _parakeetRecognizer != null;
 
+    /// <summary>The compute backend used for Parakeet inference (e.g. "DirectML", "CPU").</summary>
+    public string ActiveComputeBackend { get; private set; } = "CPU";
+
     public event Action<bool>? IsTranscribingChanged;
 
     /// <summary>
@@ -148,24 +151,45 @@ public class TranscriptionManager : IDisposable
         {
             FreeModelUnsafe();
 
-            _parakeetRecognizer = await Task.Run(() =>
+            // Try DirectML for GPU acceleration; fall back to CPU if unavailable.
+            OfflineRecognizer? recognizer = null;
+            string usedProvider = "cpu";
+            foreach (var provider in new[] { "directml", "cpu" })
             {
-                var config = new OfflineRecognizerConfig();
-                config.FeatConfig.SampleRate = 16000;
-                config.FeatConfig.FeatureDim = 80;
+                try
+                {
+                    string p = provider; // capture for lambda
+                    recognizer = await Task.Run(() =>
+                    {
+                        var config = new OfflineRecognizerConfig();
+                        config.FeatConfig.SampleRate = 16000;
+                        config.FeatConfig.FeatureDim = 80;
 
-                config.ModelConfig.Transducer.Encoder = Path.Combine(modelDirectory, "encoder.int8.onnx");
-                config.ModelConfig.Transducer.Decoder = Path.Combine(modelDirectory, "decoder.int8.onnx");
-                config.ModelConfig.Transducer.Joiner = Path.Combine(modelDirectory, "joiner.int8.onnx");
-                config.ModelConfig.Tokens = Path.Combine(modelDirectory, "tokens.txt");
-                config.ModelConfig.NumThreads = Math.Max(1, Environment.ProcessorCount);
-                config.ModelConfig.Provider = "cpu";
-                config.DecodingMethod = "greedy_search";
+                        config.ModelConfig.Transducer.Encoder = Path.Combine(modelDirectory, "encoder.int8.onnx");
+                        config.ModelConfig.Transducer.Decoder = Path.Combine(modelDirectory, "decoder.int8.onnx");
+                        config.ModelConfig.Transducer.Joiner = Path.Combine(modelDirectory, "joiner.int8.onnx");
+                        config.ModelConfig.Tokens = Path.Combine(modelDirectory, "tokens.txt");
+                        config.ModelConfig.NumThreads = Math.Max(1, Environment.ProcessorCount);
+                        config.ModelConfig.Provider = p;
+                        config.DecodingMethod = "greedy_search";
 
-                return new OfflineRecognizer(config);
-            });
+                        return new OfflineRecognizer(config);
+                    });
+                    usedProvider = provider;
+                    break;
+                }
+                catch when (provider != "cpu")
+                {
+                    Log.Info("Transcription", $"Provider {provider} unavailable, falling back to CPU");
+                }
+            }
 
-            Log.Info("Transcription", "Parakeet model loaded successfully");
+            if (recognizer == null)
+                throw new InvalidOperationException("Failed to load Parakeet model.");
+
+            _parakeetRecognizer = recognizer;
+            ActiveComputeBackend = usedProvider == "directml" ? "DirectML" : "CPU";
+            Log.Info("Transcription", $"Parakeet model loaded with backend: {ActiveComputeBackend}");
         }
         finally
         {

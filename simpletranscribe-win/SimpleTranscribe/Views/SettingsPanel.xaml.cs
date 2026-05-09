@@ -80,6 +80,19 @@ public sealed partial class SettingsPanel : UserControl
         _suppressEvents = false;
     }
 
+    public void UpdateBackend(string backend)
+    {
+        if (string.IsNullOrEmpty(backend) || backend == "CPU")
+        {
+            BackendBadgeText.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            BackendBadgeText.Text = $"⚡ {backend}";
+            BackendBadgeText.Visibility = Visibility.Visible;
+        }
+    }
+
     public void UpdateLanguages(List<SupportedLanguage> languages, string selectedCode)
     {
         _suppressEvents = true;
