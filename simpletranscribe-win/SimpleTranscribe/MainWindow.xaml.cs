@@ -30,17 +30,25 @@ public sealed partial class MainWindow : Window
         // Wire up view events to view model
         RecordingControls.ToggleRecordingClicked += (_, _) => _vm.ToggleRecording();
         RecordingControls.ShowModelManagerClicked += (_, _) => ShowModelManager();
+        RecordingControls.ToggleHistoryClicked += (_, _) => ToggleHistory();
 
         Settings.DeviceChanged += (_, id) => _vm.SelectedDeviceId = id;
         Settings.ModelChanged += (_, id) => _vm.SelectedModelId = id;
         Settings.LanguageChanged += (_, lang) => _vm.SelectedLanguage = lang;
         Settings.UseSystemDefaultChanged += (_, value) => _vm.UseSystemDefault = value;
+        Settings.HotKeyChanged += (_, combo) =>
+        {
+            _vm.HotKeyVKey = combo.vKey;
+            _vm.HotKeyModifierVKey = combo.modifierVKey;
+        };
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
 
         ModelDownloadPanel.CloseRequested += (_, _) => HideModelManager();
         ModelDownloadPanel.ModelSelected += (_, id) => _vm.SelectedModelId = id;
+
+        HistoryPanel.History = _vm.History;
 
         // Subscribe to view model property changes
         _vm.PropertyChanged += OnViewModelPropertyChanged;
@@ -123,6 +131,7 @@ public sealed partial class MainWindow : Window
         Settings.UpdateUseSystemDefault(_vm.UseSystemDefault);
         Settings.UpdateModels(_vm.DownloadedModels, _vm.SelectedModelId);
         Settings.UpdateLanguage(_vm.SelectedLanguage);
+        Settings.UpdateHotKey(_vm.HotKeyVKey, _vm.HotKeyModifierVKey);
         TranscriptResults.Text = _vm.TranscribedText;
         UpdateModelBanner();
         UpdateErrorBanner();
@@ -215,6 +224,14 @@ public sealed partial class MainWindow : Window
     {
         ModelOverlay.Visibility = Visibility.Collapsed;
         _vm.SelectDefaultModel();
+    }
+
+    private bool _historyVisible = false;
+    private void ToggleHistory()
+    {
+        _historyVisible = !_historyVisible;
+        HistoryBorder.Visibility = _historyVisible ? Visibility.Visible : Visibility.Collapsed;
+        RecordingControls.UpdateHistoryButtonState(_historyVisible);
     }
 
     /// <summary>Shows and restores the window from the system tray.</summary>

@@ -19,6 +19,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly ModelService _modelService = new();
     private AudioDeviceNotifier? _deviceNotifier;
     private SynchronizationContext? _syncContext;
+    private DateTime? _recordingStartTime;
+
+    public TranscriptHistoryService History { get; } = new();
 
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isProcessing;
@@ -34,6 +37,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string? _selectedDeviceId;
     [ObservableProperty] private bool _useSystemDefault = true;
     [ObservableProperty] private string _deviceSwitchMessage = "";
+    [ObservableProperty] private int _hotKeyVKey = Win32Interop.VK_SPACE;
+    [ObservableProperty] private int _hotKeyModifierVKey = Win32Interop.VK_CONTROL;
 
     [ObservableProperty] private List<AudioDeviceInfo> _availableDevices = new();
     [ObservableProperty] private List<ModelInfo> _downloadedModels = new();
@@ -51,6 +56,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _selectedModelId = GetSetting("selectedModelId", "");
         _selectedDeviceId = GetSetting("selectedDeviceId");
         _useSystemDefault = GetSetting("useSystemDefault", "True") == "True";
+        _hotKeyVKey = int.TryParse(GetSetting("hotKeyVKey"), out var vk) ? vk : Win32Interop.VK_SPACE;
+        _hotKeyModifierVKey = int.TryParse(GetSetting("hotKeyModifierVKey"), out var mod) ? mod : Win32Interop.VK_CONTROL;
 
         // Wire up audio buffer relay
         _audioManager.OnBufferReceived += buffer =>
@@ -92,6 +99,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _deviceNotifier.DefaultDeviceChanged += HandleDefaultDeviceChanged;
 
         _hotKeyManager.Setup();
+        _hotKeyManager.UpdateHotKey(HotKeyVKey, HotKeyModifierVKey);
         RefreshDevices();
 
         if (!string.IsNullOrEmpty(SelectedModelId) &&
@@ -104,6 +112,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // --- Settings persistence ---
 
     partial void OnSelectedLanguageChanged(string value) => SaveSetting("language", value);
+    partial void OnHotKeyVKeyChanged(int value)
+    {
+        SaveSetting("hotKeyVKey", value.ToString());
+        _hotKeyManager.UpdateHotKey(value, HotKeyModifierVKey);
+    }
+    partial void OnHotKeyModifierVKeyChanged(int value)
+    {
+        SaveSetting("hotKeyModifierVKey", value.ToString());
+        _hotKeyManager.UpdateHotKey(HotKeyVKey, value);
+    }
     partial void OnSelectedModelIdChanged(string value)
     {
         SaveSetting("selectedModelId", value);
@@ -195,6 +213,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _transcriptionManager.StartTranscription(SelectedLanguage);
             IsRecording = true;
+            _recordingStartTime = DateTime.Now;
             ShowTranscriptionStarted = true;
             OverlayState = OverlayState.Recording;
             _audioManager.StartRecording(SelectedDeviceId);
@@ -229,6 +248,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 TranscribedText = string.IsNullOrEmpty(TranscribedText)
                     ? trimmed
                     : TranscribedText + " " + trimmed;
+
+                var duration = _recordingStartTime.HasValue
+                    ? (DateTime.Now - _recordingStartTime.Value).TotalSeconds
+                    : 0;
+                History.Append(new Models.TranscriptEntry
+                {
+                    Text = trimmed,
+                    DurationSeconds = duration,
+                    ModelId = SelectedModelId,
+                    Language = SelectedLanguage
+                });
             }
 
             IsProcessing = false;

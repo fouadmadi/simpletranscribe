@@ -34,6 +34,7 @@ class AppModel {
     
     // Model management
     let modelService = ModelService()
+    let history = TranscriptHistory()
     
     // Status properties
     var isProcessing: Bool = false
@@ -51,6 +52,20 @@ class AppModel {
         didSet { UserDefaults.standard.set(useSystemDefault, forKey: "useSystemDefault") }
     }
 
+    /// The modifier combo used for push-to-talk. Defaults to fn+Control.
+    var hotKeyModifiers: NSEvent.ModifierFlags = {
+        let raw = UserDefaults.standard.integer(forKey: "hotKeyModifiers")
+        return raw == 0
+            ? [.function, .control]
+            : NSEvent.ModifierFlags(rawValue: UInt(raw))
+    }() {
+        didSet {
+            UserDefaults.standard.set(Int(hotKeyModifiers.rawValue), forKey: "hotKeyModifiers")
+            // HotKeyManager is set externally — look it up via notification
+            NotificationCenter.default.post(name: .hotKeyModifiersChanged, object: hotKeyModifiers)
+        }
+    }
+
     /// Transient status message for device switches (e.g. "Switched to: AirPods Pro")
     var deviceSwitchMessage: String = ""
 
@@ -65,6 +80,7 @@ class AppModel {
 
     // Track the app the user was in when recording started (for paste-back)
     @ObservationIgnored private var previousApp: NSRunningApplication?
+    @ObservationIgnored private var recordingStartTime: Date?
 
     var currentModel: ModelInfo? {
         modelService.getModel(selectedModelID)
@@ -238,6 +254,7 @@ class AppModel {
                 self.transcribedText = ""
                 transcriptionManager.startTranscription(language: self.selectedLanguage)
                 self.isRecording = true
+                self.recordingStartTime = Date()
                 self.showTranscriptionStarted = true
                 self.overlayState = .recording
                 try audioManager.startRecording(device: self.selectedInputDevice)
@@ -275,6 +292,16 @@ class AppModel {
                     } else {
                         transcribedText += " " + trimmed
                     }
+
+                    // Save to history
+                    let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
+                    let entry = TranscriptEntry(
+                        text: trimmed,
+                        duration: duration,
+                        modelID: selectedModelID,
+                        language: selectedLanguage
+                    )
+                    history.append(entry)
                 }
 
                 isProcessing = false
@@ -394,4 +421,10 @@ class AppModel {
         overlayClearWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
     }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let hotKeyModifiersChanged = Notification.Name("com.simpletranscribe.hotKeyModifiersChanged")
+    static let menuBarToggleRecording = Notification.Name("com.simpletranscribe.menuBarToggleRecording")
 }

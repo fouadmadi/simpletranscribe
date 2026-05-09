@@ -5,7 +5,7 @@ namespace SimpleTranscribe.Services;
 
 /// <summary>
 /// Global press-to-talk hotkey using a low-level keyboard hook.
-/// Port of macOS HotKeyManager.swift — uses Ctrl+Space instead of fn+Ctrl.
+/// Port of macOS HotKeyManager.swift — uses Ctrl+Space instead of fn+Ctrl (configurable).
 /// 
 /// Detects key-down → start recording, key-up → stop &amp; transcribe.
 /// </summary>
@@ -18,6 +18,16 @@ public class HotKeyManager : IDisposable
     private bool _isCtrlHeld;
     private bool _isHotKeyPressed;
     private bool _disposed;
+
+    /// <summary>
+    /// The virtual key code for the hotkey trigger key. Default is Space (0x20).
+    /// </summary>
+    public int TargetVKey { get; set; } = Win32Interop.VK_SPACE;
+
+    /// <summary>
+    /// The required modifier virtual key code. Default is Control (0x11).
+    /// </summary>
+    public int TargetModifierVKey { get; set; } = Win32Interop.VK_CONTROL;
 
     /// <summary>
     /// Whether the hotkey combo is currently held down.
@@ -38,6 +48,19 @@ public class HotKeyManager : IDisposable
     /// Always fired on the thread that installed the hook.
     /// </summary>
     public event Action<bool>? HotKeyStateChanged;
+
+    /// <summary>
+    /// Update the active hotkey combination.
+    /// </summary>
+    public void UpdateHotKey(int vKey, int modifierVKey)
+    {
+        // Reset any in-progress state before switching
+        if (IsHotKeyPressed)
+            IsHotKeyPressed = false;
+        _isCtrlHeld = false;
+        TargetVKey = vKey;
+        TargetModifierVKey = modifierVKey;
+    }
 
     /// <summary>
     /// Install the keyboard hook. Must be called from a thread with a message pump.
@@ -71,26 +94,25 @@ public class HotKeyManager : IDisposable
             bool isKeyDown = msgType is Win32Interop.WM_KEYDOWN or Win32Interop.WM_SYSKEYDOWN;
             bool isKeyUp = msgType is Win32Interop.WM_KEYUP or Win32Interop.WM_SYSKEYUP;
 
-            // Track Ctrl state
-            if (vkCode is Win32Interop.VK_CONTROL or 0xA2 or 0xA3) // VK_LCONTROL, VK_RCONTROL
+            // Track modifier state (Ctrl variants)
+            bool isModifier = vkCode == TargetModifierVKey ||
+                              (TargetModifierVKey == Win32Interop.VK_CONTROL &&
+                               vkCode is 0xA2 or 0xA3); // VK_LCONTROL, VK_RCONTROL
+
+            if (isModifier)
             {
                 _isCtrlHeld = isKeyDown;
-                // If Ctrl released while hotkey was active, deactivate
                 if (isKeyUp && IsHotKeyPressed)
                     IsHotKeyPressed = false;
             }
 
-            // Detect Space while Ctrl is held
-            if (vkCode == Win32Interop.VK_SPACE)
+            // Detect trigger key while modifier is held
+            if (vkCode == TargetVKey)
             {
                 if (isKeyDown && _isCtrlHeld && !IsHotKeyPressed)
-                {
                     IsHotKeyPressed = true;
-                }
                 else if (isKeyUp && IsHotKeyPressed)
-                {
                     IsHotKeyPressed = false;
-                }
             }
         }
 

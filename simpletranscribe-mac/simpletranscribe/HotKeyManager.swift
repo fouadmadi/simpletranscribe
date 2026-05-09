@@ -12,8 +12,24 @@ class HotKeyManager {
     private var localMonitor: Any?
     private var lastReportedState = false
 
-    // The modifier combo we're looking for: fn + ctrl
-    private let requiredFlags: NSEvent.ModifierFlags = [.function, .control]
+    // The modifier combo we're looking for — configurable, defaults to fn+ctrl
+    private(set) var requiredFlags: NSEvent.ModifierFlags = {
+        let raw = UserDefaults.standard.integer(forKey: "hotKeyModifiers")
+        return raw == 0
+            ? [.function, .control]
+            : NSEvent.ModifierFlags(rawValue: UInt(raw))
+    }()
+
+    /// Update the active hotkey combo (called from AppModel when user changes setting).
+    func updateHotKey(modifiers: NSEvent.ModifierFlags) {
+        requiredFlags = modifiers
+        // Reset in case old combo was mid-press
+        if lastReportedState {
+            lastReportedState = false
+            isHotKeyPressed = false
+            onHotKeyChanged?(false)
+        }
+    }
 
     init() {
         // Monitoring is deferred to setup() so NSEvent monitors aren't

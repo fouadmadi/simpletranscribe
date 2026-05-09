@@ -1,11 +1,80 @@
 import SwiftUI
 import AVFoundation
 
+// MARK: - HotKey Recorder
+
+struct HotKeyRecorderView: View {
+    @Binding var modifiers: NSEvent.ModifierFlags
+    @State private var isRecording = false
+    @State private var monitor: Any?
+
+    private static let knownConflicts: [NSEvent.ModifierFlags] = [
+        [.command], [.command, .shift]
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Button(isRecording ? "Press keys…" : symbolString(modifiers)) {
+                    if isRecording { stopRecording() } else { startRecording() }
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(isRecording ? .accentColor : .primary)
+
+                Button("↺") {
+                    modifiers = [.function, .control]
+                    stopRecording()
+                }
+                .buttonStyle(.borderless)
+                .help("Reset to default (fn⌃)")
+            }
+
+            if Self.knownConflicts.contains(modifiers) {
+                Text("⚠ May conflict with system shortcuts")
+                    .font(.system(size: 10))
+                    .foregroundColor(.orange)
+            }
+        }
+    }
+
+    private func startRecording() {
+        isRecording = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            let flags = event.modifierFlags.intersection([
+                .command, .option, .control, .shift, .function
+            ])
+            if !flags.isEmpty {
+                modifiers = flags
+                stopRecording()
+            }
+            return event
+        }
+    }
+
+    private func stopRecording() {
+        isRecording = false
+        if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
+    }
+
+    private func symbolString(_ flags: NSEvent.ModifierFlags) -> String {
+        var parts: [String] = []
+        if flags.contains(.function) { parts.append("fn") }
+        if flags.contains(.control)  { parts.append("⌃") }
+        if flags.contains(.option)   { parts.append("⌥") }
+        if flags.contains(.shift)    { parts.append("⇧") }
+        if flags.contains(.command)  { parts.append("⌘") }
+        return parts.isEmpty ? "None" : parts.joined()
+    }
+}
+
+// MARK: - SettingsAreaView
+
 struct SettingsAreaView: View {
     @Binding var selectedInputDevice: AVCaptureDevice?
     @Binding var selectedModelID: String
     @Binding var selectedLanguage: String
     @Binding var useSystemDefault: Bool
+    @Binding var hotKeyModifiers: NSEvent.ModifierFlags
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
@@ -48,6 +117,13 @@ struct SettingsAreaView: View {
                 Text("Chinese").tag("zh")
             }
             .frame(maxWidth: 150)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Hotkey")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HotKeyRecorderView(modifiers: $hotKeyModifiers)
+            }
 
             Spacer()
         }

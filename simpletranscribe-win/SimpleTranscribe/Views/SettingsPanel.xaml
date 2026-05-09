@@ -47,6 +47,28 @@
                     <ComboBoxItem Content="Chinese" Tag="zh" />
                 </ComboBox>
             </StackPanel>
+            <!-- Hotkey recorder -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Hotkey" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBox x:Name="HotKeyBox"
+                         Width="130"
+                         IsReadOnly="True"
+                         PlaceholderText="Click to record"
+                         GotFocus="HotKeyBox_GotFocus"
+                         LostFocus="HotKeyBox_LostFocus"
+                         KeyDown="HotKeyBox_KeyDown"
+                         ToolTipService.ToolTip="Click then press your desired key combo" />
+                <TextBlock x:Name="HotKeyConflictText"
+                           Text="⚠ May conflict with system shortcuts"
+                           FontSize="11"
+                           Foreground="Orange"
+                           Visibility="Collapsed" />
+                <HyperlinkButton x:Name="HotKeyResetButton"
+                                 Content="Reset to default"
+                                 FontSize="11"
+                                 Padding="0"
+                                 Click="HotKeyReset_Click" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

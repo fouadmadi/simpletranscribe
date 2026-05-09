@@ -6,6 +6,7 @@ struct ContentView: View {
 
     @State private var showCopiedAlert = false
     @State private var showModelManager = false
+    @State private var showHistory = false
 
     var body: some View {
         @Bindable var appModel = appModel
@@ -29,6 +30,7 @@ struct ContentView: View {
                 selectedModelID: $appModel.selectedModelID,
                 selectedLanguage: $appModel.selectedLanguage,
                 useSystemDefault: $appModel.useSystemDefault,
+                hotKeyModifiers: $appModel.hotKeyModifiers,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
             )
@@ -47,17 +49,35 @@ struct ContentView: View {
 
             Divider()
 
-            TranscriptResultsView(
-                transcribedText: $appModel.transcribedText,
-                showCopiedAlert: $showCopiedAlert,
-                onCopy: copyToClipboard
-            )
+            HSplitView {
+                TranscriptResultsView(
+                    transcribedText: $appModel.transcribedText,
+                    showCopiedAlert: $showCopiedAlert,
+                    onCopy: copyToClipboard
+                )
+                .frame(minWidth: 300)
+
+                if showHistory {
+                    TranscriptHistoryView()
+                        .frame(minWidth: 220, maxWidth: 350)
+                }
+            }
 
             modelStatusBanner
             errorBanner
             accessibilityBanner
         }
         .frame(minWidth: 600, minHeight: 350)
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    withAnimation { showHistory.toggle() }
+                } label: {
+                    Label("History", systemImage: showHistory ? "clock.fill" : "clock")
+                }
+                .help(showHistory ? "Hide history" : "Show history")
+            }
+        }
         .onChange(of: appModel.selectedModelID) { oldValue, newValue in
             appModel.modelLoaded = false
             appModel.errorMessage = nil

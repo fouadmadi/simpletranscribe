@@ -91,6 +91,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.appModel.handleHotKey(pressed: pressed)
         }
 
+        // Sync any persisted hotkey combo to the manager
+        hotKeyManager.updateHotKey(modifiers: appModel.hotKeyModifiers)
+
+        // Propagate hotkey changes from AppModel → HotKeyManager
+        NotificationCenter.default.addObserver(
+            forName: .hotKeyModifiersChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            if let flags = note.object as? NSEvent.ModifierFlags {
+                self?.hotKeyManager.updateHotKey(modifiers: flags)
+            }
+        }
+
         // Refresh accessibility state when app becomes active
         NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
