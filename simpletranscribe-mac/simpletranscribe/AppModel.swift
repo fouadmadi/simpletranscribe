@@ -28,6 +28,10 @@ class AppModel {
     var postProcessorConfig: PostProcessorConfig = PostProcessorConfig.fromUserDefaults() {
         didSet { postProcessorConfig.save() }
     }
+    var autoClearAfterPaste: Bool = UserDefaults.standard.bool(forKey: "autoClearAfterPaste") {
+        didSet { UserDefaults.standard.set(autoClearAfterPaste, forKey: "autoClearAfterPaste") }
+    }
+    var lastRecordingDuration: TimeInterval = 0
     var selectedLanguage: String = UserDefaults.standard.string(forKey: "selectedLanguage") ?? "en" {
         didSet { UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage") }
     }
@@ -349,6 +353,7 @@ class AppModel {
 
                     // Save to history
                     let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
+                    lastRecordingDuration = duration
                     let entry = TranscriptEntry(
                         text: processed,
                         duration: duration,
@@ -369,6 +374,10 @@ class AppModel {
                         target.activate()
                     }
                     PasteService.copyAndPaste(processed)
+                    if autoClearAfterPaste {
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        transcribedText = ""
+                    }
                 }
             } catch {
                 Self.logger.error("transcription error: \(error, privacy: .public)")

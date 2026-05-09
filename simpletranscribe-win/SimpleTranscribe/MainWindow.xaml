@@ -5,7 +5,7 @@
     xmlns:views="using:SimpleTranscribe.Views"
     Title="SimpleTranscribe">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto">
         <!-- Recording controls -->
         <MenuBar Grid.Row="0">
             <MenuBarItem Title="Help">
@@ -34,8 +34,25 @@
             </Border>
         </Grid>
 
+        <!-- Status bar: word count, char count, duration -->
+        <StackPanel Grid.Row="5"
+                    Orientation="Horizontal"
+                    Spacing="16"
+                    Padding="16,4"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+            <TextBlock x:Name="WordCountText" FontSize="11"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Visibility="Collapsed" />
+            <TextBlock x:Name="CharCountText" FontSize="11"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Visibility="Collapsed" />
+            <TextBlock x:Name="DurationText" FontSize="11"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Visibility="Collapsed" />
+        </StackPanel>
+
         <!-- Model status banner -->
-        <Border x:Name="ModelStatusBanner" Grid.Row="5" Visibility="Collapsed"
+        <Border x:Name="ModelStatusBanner" Grid.Row="6" Visibility="Collapsed"
                 Padding="16" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <FontIcon x:Name="BannerIcon" Glyph="&#xE946;" FontSize="16"
@@ -50,13 +67,13 @@
         </Border>
 
         <!-- Error banner -->
-        <Border x:Name="ErrorBanner" Grid.Row="6" Visibility="Collapsed"
+        <Border x:Name="ErrorBanner" Grid.Row="7" Visibility="Collapsed"
                 Padding="16">
             <TextBlock x:Name="ErrorText" FontSize="12" Foreground="Red" TextWrapping="Wrap" />
         </Border>
 
         <!-- Model download overlay -->
-        <Border x:Name="ModelOverlay" Grid.Row="0" Grid.RowSpan="7" Visibility="Collapsed"
+        <Border x:Name="ModelOverlay" Grid.Row="0" Grid.RowSpan="8" Visibility="Collapsed"
                 Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}">
             <views:ModelDownloadPage x:Name="ModelDownloadPanel" />
         </Border>

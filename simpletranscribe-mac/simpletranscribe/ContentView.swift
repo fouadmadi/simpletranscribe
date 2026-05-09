@@ -33,6 +33,7 @@ struct ContentView: View {
                 hotKeyModifiers: $appModel.hotKeyModifiers,
                 streamingEnabled: $appModel.streamingEnabled,
                 postProcessorConfig: $appModel.postProcessorConfig,
+                autoClearAfterPaste: $appModel.autoClearAfterPaste,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
             )
@@ -52,14 +53,21 @@ struct ContentView: View {
             Divider()
 
             HSplitView {
-                TranscriptResultsView(
-                    transcribedText: $appModel.transcribedText,
-                    showCopiedAlert: $showCopiedAlert,
-                    liveTranscriptText: appModel.liveTranscriptText,
-                    isRecording: appModel.isRecording,
-                    onCopy: copyToClipboard,
-                    onExport: { format in appModel.exportCurrentTranscript(format: format) }
-                )
+                VStack(spacing: 0) {
+                    TranscriptResultsView(
+                        transcribedText: $appModel.transcribedText,
+                        showCopiedAlert: $showCopiedAlert,
+                        liveTranscriptText: appModel.liveTranscriptText,
+                        isRecording: appModel.isRecording,
+                        onCopy: copyToClipboard,
+                        onExport: { format in appModel.exportCurrentTranscript(format: format) }
+                    )
+                    Divider()
+                    TranscriptStatusBar(
+                        text: appModel.transcribedText,
+                        lastDuration: appModel.lastRecordingDuration
+                    )
+                }
                 .frame(minWidth: 300)
 
                 if showHistory {

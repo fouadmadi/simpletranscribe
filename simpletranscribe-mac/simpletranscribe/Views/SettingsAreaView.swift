@@ -77,6 +77,7 @@ struct SettingsAreaView: View {
     @Binding var hotKeyModifiers: NSEvent.ModifierFlags
     @Binding var streamingEnabled: Bool
     @Binding var postProcessorConfig: PostProcessorConfig
+    @Binding var autoClearAfterPaste: Bool
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
@@ -133,6 +134,11 @@ struct SettingsAreaView: View {
                 .font(.caption)
                 .help("Show partial transcription while recording (Whisper models, lower accuracy)")
                 .disabled(downloadedModels.first(where: { $0.id == selectedModelID })?.modelType == .parakeet)
+
+            Toggle("Auto-clear after paste", isOn: $autoClearAfterPaste)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .help("Clears the transcript box after each auto-paste")
 
             // Text processing toggles
             VStack(alignment: .leading, spacing: 2) {

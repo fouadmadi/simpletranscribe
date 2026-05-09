@@ -34,6 +34,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private OverlayState _overlayState = OverlayState.Idle;
     [ObservableProperty] private string _liveTranscriptText = "";
     [ObservableProperty] private bool _streamingEnabled;
+    [ObservableProperty] private bool _autoClearAfterPaste;
+    [ObservableProperty] private double _lastRecordingDuration;
+    [ObservableProperty] private int _wordCount;
+    [ObservableProperty] private int _charCount;
 
     private StreamingTranscriber? _streamingTranscriber;
 
@@ -53,6 +57,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public bool CanRecord => ModelLoaded && !string.IsNullOrEmpty(SelectedModelId);
     public bool HasDownloadedModels => _modelService.AvailableModels.Any(m => m.IsAvailable);
+    public string LastRecordingDurationLabel => LastRecordingDuration < 1 ? ""
+        : $"{LastRecordingDuration:F0}s recorded";
 
     public List<SupportedLanguage> AvailableLanguages => SupportedLanguages.Available(SelectedModelId);
 
@@ -80,6 +86,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hotKeyVKey = int.TryParse(GetSetting("hotKeyVKey"), out var vk) ? vk : Win32Interop.VK_SPACE;
         _hotKeyModifierVKey = int.TryParse(GetSetting("hotKeyModifierVKey"), out var mod) ? mod : Win32Interop.VK_CONTROL;
         _streamingEnabled = GetSetting("streamingEnabled", "False") == "True";
+        _autoClearAfterPaste = GetSetting("autoClearAfterPaste", "False") == "True";
         PostProcessorConfig = PostProcessorConfig.Load(k => GetSetting(k));
 
         // Wire up audio buffer relay — feeds both accumulator and streaming transcriber
@@ -148,6 +155,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedLanguageChanged(string value) => SaveSetting("language", value);
     partial void OnStreamingEnabledChanged(bool value) => SaveSetting("streamingEnabled", value.ToString());
+    partial void OnAutoClearAfterPasteChanged(bool value) => SaveSetting("autoClearAfterPaste", value.ToString());
+    partial void OnTranscribedTextChanged(string value)
+    {
+        WordCount = string.IsNullOrEmpty(value) ? 0
+            : value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        CharCount = value.Length;
+    }
     partial void OnHotKeyVKeyChanged(int value)
     {
         SaveSetting("hotKeyVKey", value.ToString());
@@ -310,6 +324,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 var duration = _recordingStartTime.HasValue
                     ? (DateTime.Now - _recordingStartTime.Value).TotalSeconds
                     : 0;
+                LastRecordingDuration = duration;
+                OnPropertyChanged(nameof(LastRecordingDurationLabel));
                 History.Append(new Models.TranscriptEntry
                 {
                     Text = processed,
@@ -324,7 +340,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             SoundManager.PlayTranscriptionComplete();
 
             if (autoPaste && !string.IsNullOrEmpty(processed))
+            {
                 PasteService.CopyAndPaste(processed);
+                if (AutoClearAfterPaste)
+                {
+                    await Task.Delay(300);
+                    TranscribedText = "";
+                }
+            }
         }
         catch (Exception ex)
         {

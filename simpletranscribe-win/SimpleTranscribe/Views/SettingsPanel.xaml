@@ -92,6 +92,12 @@
                           FontSize="12"
                           Checked="OnNumbersChanged"
                           Unchecked="OnNumbersChanged" />
+                <CheckBox x:Name="AutoClearCheckBox"
+                          Content="Auto-clear after paste"
+                          FontSize="12"
+                          ToolTipService.ToolTip="Clears transcript after each auto-paste"
+                          Checked="OnAutoClearChanged"
+                          Unchecked="OnAutoClearChanged" />
             </StackPanel>
         </StackPanel>
     </Grid>

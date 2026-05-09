@@ -18,6 +18,7 @@ public sealed partial class SettingsPanel : UserControl
     public event EventHandler<bool>? CapitaliseSentencesChanged;
     public event EventHandler<bool>? RemoveFillersChanged;
     public event EventHandler<bool>? NumberFormattingChanged;
+    public event EventHandler<bool>? AutoClearAfterPasteChanged;
 
     private bool _suppressEvents;
     private bool _isRecordingHotKey;
@@ -236,12 +237,13 @@ public sealed partial class SettingsPanel : UserControl
 
     // --- Text processing toggles ---
 
-    public void UpdateTextProcessing(bool capitalise, bool fillers, bool numbers)
+    public void UpdateTextProcessing(bool capitalise, bool fillers, bool numbers, bool autoClear = false)
     {
         _suppressEvents = true;
         CapitaliseCheckBox.IsChecked = capitalise;
         FillersCheckBox.IsChecked = fillers;
         NumbersCheckBox.IsChecked = numbers;
+        AutoClearCheckBox.IsChecked = autoClear;
         _suppressEvents = false;
     }
 
@@ -261,6 +263,12 @@ public sealed partial class SettingsPanel : UserControl
     {
         if (_suppressEvents) return;
         NumberFormattingChanged?.Invoke(this, NumbersCheckBox.IsChecked == true);
+    }
+
+    private void OnAutoClearChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        AutoClearAfterPasteChanged?.Invoke(this, AutoClearCheckBox.IsChecked == true);
     }
 
     private static string FormatHotKey(int modVKey, int vKey)

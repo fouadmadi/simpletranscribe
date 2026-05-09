@@ -45,6 +45,7 @@ public sealed partial class MainWindow : Window
         Settings.CapitaliseSentencesChanged += (_, v) => { _vm.PostProcessorConfig.CapitaliseSentences = v; _vm.PostProcessorConfig.Save(SaveSetting); };
         Settings.RemoveFillersChanged += (_, v) => { _vm.PostProcessorConfig.RemoveFillersEnabled = v; _vm.PostProcessorConfig.Save(SaveSetting); };
         Settings.NumberFormattingChanged += (_, v) => { _vm.PostProcessorConfig.NumberFormattingEnabled = v; _vm.PostProcessorConfig.Save(SaveSetting); };
+        Settings.AutoClearAfterPasteChanged += (_, v) => _vm.AutoClearAfterPaste = v;
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
@@ -135,6 +136,12 @@ public sealed partial class MainWindow : Window
                     Settings.UpdateLanguage(_vm.SelectedLanguage);
                     break;
 
+                case nameof(MainViewModel.WordCount):
+                case nameof(MainViewModel.CharCount):
+                case nameof(MainViewModel.LastRecordingDuration):
+                    UpdateStatusBar();
+                    break;
+
                 case nameof(MainViewModel.HasDownloadedModels):
                     UpdateModelBanner();
                     break;
@@ -154,7 +161,8 @@ public sealed partial class MainWindow : Window
         Settings.UpdateTextProcessing(
             _vm.PostProcessorConfig.CapitaliseSentences,
             _vm.PostProcessorConfig.RemoveFillersEnabled,
-            _vm.PostProcessorConfig.NumberFormattingEnabled);
+            _vm.PostProcessorConfig.NumberFormattingEnabled,
+            _vm.AutoClearAfterPaste);
         TranscriptResults.Text = _vm.TranscribedText;
         UpdateModelBanner();
         UpdateErrorBanner();
@@ -193,6 +201,26 @@ public sealed partial class MainWindow : Window
         {
             _vm.ErrorMessage = $"Export failed: {ex.Message}";
         }
+    }
+
+    private void UpdateStatusBar()
+    {
+        if (_vm.WordCount > 0)
+        {
+            WordCountText.Text = $"{_vm.WordCount} words";
+            WordCountText.Visibility = Visibility.Visible;
+            CharCountText.Text = $"{_vm.CharCount} chars";
+            CharCountText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            WordCountText.Visibility = Visibility.Collapsed;
+            CharCountText.Visibility = Visibility.Collapsed;
+        }
+
+        var label = _vm.LastRecordingDurationLabel;
+        DurationText.Text = label;
+        DurationText.Visibility = string.IsNullOrEmpty(label) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void UpdateRecordingControls()
