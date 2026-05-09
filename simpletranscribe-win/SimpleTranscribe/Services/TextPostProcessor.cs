@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using SimpleTranscribe.Models;
 
 namespace SimpleTranscribe.Services;
 
