@@ -54,10 +54,20 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         
         // Check which models are already downloaded
         for i in 0..<models.count {
-            let modelURL = modelsDirectory.appending(path: models[i].id + ".bin")
-            if FileManager.default.fileExists(atPath: modelURL.path) {
-                models[i].status = .downloaded
-                models[i].downloadedPath = modelURL
+            if models[i].isDirectory {
+                // Directory-based models (Parakeet): check that directory exists and all files are present
+                let modelDir = modelsDirectory.appending(path: models[i].id, directoryHint: .isDirectory)
+                if isDirectoryModelComplete(modelDir, files: models[i].files) {
+                    models[i].status = .downloaded
+                    models[i].downloadedPath = modelDir
+                }
+            } else {
+                // Single-file models (Whisper): check for .bin file
+                let modelURL = modelsDirectory.appending(path: models[i].id + ".bin")
+                if FileManager.default.fileExists(atPath: modelURL.path) {
+                    models[i].status = .downloaded
+                    models[i].downloadedPath = modelURL
+                }
             }
         }
         
@@ -94,6 +104,18 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         rebuildModelIndex()
     }
     
+    /// Check if all files in a directory-based model are present
+    private func isDirectoryModelComplete(_ dir: URL, files: [ModelFile]) -> Bool {
+        guard !files.isEmpty else { return false }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else {
+            return false
+        }
+        return files.allSatisfy { file in
+            FileManager.default.fileExists(atPath: dir.appending(path: file.filename).path)
+        }
+    }
+    
     /// Download a model by ID
     func downloadModel(_ modelID: String) async throws {
         guard let index = modelIndex[modelID] else {
@@ -109,15 +131,67 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         updateModelStatus(modelID, to: .downloading)
         downloadProgress[modelID] = 0.0
         
-        // Start the download
-        await withCheckedContinuation { continuation in
-            let task = urlSession.downloadTask(with: model.downloadURL)
-            downloadTasks[modelID] = task
-            downloadContinuations[modelID] = continuation
-            taskMapLock.lock()
-            taskToModelID[task.taskIdentifier] = modelID
-            taskMapLock.unlock()
-            task.resume()
+        if model.isDirectory && !model.files.isEmpty {
+            // Directory-based model: download each file into a subdirectory
+            try await downloadDirectoryModel(modelID: modelID, model: model)
+        } else {
+            // Single-file model: use URLSession download delegate
+            await withCheckedContinuation { continuation in
+                let task = urlSession.downloadTask(with: model.downloadURL)
+                downloadTasks[modelID] = task
+                downloadContinuations[modelID] = continuation
+                taskMapLock.lock()
+                taskToModelID[task.taskIdentifier] = modelID
+                taskMapLock.unlock()
+                task.resume()
+            }
+        }
+    }
+    
+    /// Download a directory-based model (multiple files into a subdirectory)
+    private func downloadDirectoryModel(modelID: String, model: ModelInfo) async throws {
+        let modelDir = modelsDirectory.appending(path: modelID, directoryHint: .isDirectory)
+        let tempDir = modelsDirectory.appending(path: modelID + ".downloading", directoryHint: .isDirectory)
+        
+        // Clean up any previous incomplete download
+        try? FileManager.default.removeItem(at: tempDir)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        
+        let totalSize = model.files.reduce(0) { $0 + $1.size }
+        var downloadedBytes: Int64 = 0
+        
+        for file in model.files {
+            let destURL = tempDir.appending(path: file.filename)
+            
+            // Download each file
+            let (tempURL, _) = try await URLSession.shared.download(from: file.downloadURL)
+            
+            // Verify SHA256 if available
+            try verifyFileIntegrity(at: tempURL, expectedHash: file.sha256)
+            
+            // Move to destination
+            try FileManager.default.moveItem(at: tempURL, to: destURL)
+            
+            downloadedBytes += file.size
+            let progress = Double(downloadedBytes) / Double(totalSize)
+            
+            await MainActor.run {
+                self.downloadProgress[modelID] = progress
+            }
+        }
+        
+        // Atomic move: rename temp dir to final location
+        if FileManager.default.fileExists(atPath: modelDir.path) {
+            try FileManager.default.removeItem(at: modelDir)
+        }
+        try FileManager.default.moveItem(at: tempDir, to: modelDir)
+        
+        await MainActor.run {
+            if let index = self.modelIndex[modelID] {
+                self.availableModels[index].status = .downloaded
+                self.availableModels[index].downloadedPath = modelDir
+            }
+            self.downloadProgress[modelID] = 1.0
         }
     }
     
@@ -142,6 +216,10 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         if let path = model.downloadedPath {
             try FileManager.default.removeItem(at: path)
         }
+        
+        // Also clean up temp download directory if it exists
+        let tempDir = modelsDirectory.appending(path: modelID + ".downloading")
+        try? FileManager.default.removeItem(at: tempDir)
         
         availableModels[index].status = .notDownloaded
         availableModels[index].downloadedPath = nil

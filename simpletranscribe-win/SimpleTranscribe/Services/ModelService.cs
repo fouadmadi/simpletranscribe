@@ -44,17 +44,33 @@ public class ModelService
             Size = m.Size,
             DownloadUrl = m.DownloadUrl,
             Language = m.Language,
-            Sha256 = m.Sha256
+            Sha256 = m.Sha256,
+            ModelType = m.ModelType,
+            IsDirectory = m.IsDirectory,
+            Files = m.Files
         }).ToList();
 
         // Check which models are already downloaded
         foreach (var model in models)
         {
-            var modelPath = Path.Combine(_modelsDirectory, model.Id + ".bin");
-            if (File.Exists(modelPath))
+            if (model.IsDirectory)
             {
-                model.Status = ModelStatus.Downloaded;
-                model.DownloadedPath = modelPath;
+                // Directory-based models (Parakeet): check that directory and all files exist
+                var modelDir = Path.Combine(_modelsDirectory, model.Id);
+                if (IsDirectoryModelComplete(modelDir, model.Files))
+                {
+                    model.Status = ModelStatus.Downloaded;
+                    model.DownloadedPath = modelDir;
+                }
+            }
+            else
+            {
+                var modelPath = Path.Combine(_modelsDirectory, model.Id + ".bin");
+                if (File.Exists(modelPath))
+                {
+                    model.Status = ModelStatus.Downloaded;
+                    model.DownloadedPath = modelPath;
+                }
             }
         }
 
@@ -91,6 +107,16 @@ public class ModelService
     }
 
     /// <summary>
+    /// Check if all files in a directory-based model are present.
+    /// </summary>
+    private static bool IsDirectoryModelComplete(string dir, List<ModelFile> files)
+    {
+        if (files.Count == 0) return false;
+        if (!Directory.Exists(dir)) return false;
+        return files.All(f => File.Exists(Path.Combine(dir, f.Filename)));
+    }
+
+    /// <summary>
     /// Download a model by ID with progress reporting.
     /// </summary>
     public async Task DownloadModelAsync(string modelId, IProgress<double>? progress = null, CancellationToken externalToken = default)
@@ -111,71 +137,29 @@ public class ModelService
             ModelsChanged?.Invoke();
             Log.Info("ModelService", $"Starting download: {modelId}");
 
-            var destPath = Path.Combine(_modelsDirectory, modelId + ".bin");
-            var tempPath = destPath + ".tmp";
-
-            using var response = await _httpClient.GetAsync(
-                model.DownloadUrl,
-                HttpCompletionOption.ResponseHeadersRead,
-                cts.Token);
-            response.EnsureSuccessStatusCode();
-
-            var totalBytes = response.Content.Headers.ContentLength ?? -1;
-
-            await using var contentStream = await response.Content.ReadAsStreamAsync(cts.Token);
-            await using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-
-            var buffer = new byte[81920];
-            long bytesRead = 0;
-            int read;
-            var lastProgressReport = DateTime.MinValue;
-
-            while ((read = await contentStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cts.Token)) > 0)
+            if (model.IsDirectory && model.Files.Count > 0)
             {
-                await fileStream.WriteAsync(buffer.AsMemory(0, read), cts.Token);
-                bytesRead += read;
-
-                // Throttle progress updates to ~5Hz (matches macOS 0.2s throttle)
-                var now = DateTime.UtcNow;
-                if (totalBytes > 0 && (now - lastProgressReport).TotalMilliseconds >= 200)
-                {
-                    var progressValue = (double)bytesRead / totalBytes;
-                    model.DownloadProgress = progressValue;
-                    progress?.Report(progressValue);
-                    ModelsChanged?.Invoke();
-                    lastProgressReport = now;
-                }
+                await DownloadDirectoryModelAsync(model, progress, cts.Token);
+            }
+            else
+            {
+                await DownloadSingleFileModelAsync(model, progress, cts.Token);
             }
 
-            await fileStream.FlushAsync(cts.Token);
-            fileStream.Close();
-
-            // Verify SHA256 hash
-            await VerifyFileIntegrityAsync(tempPath, model.Sha256);
-
-            // Move temp file to final location
-            if (File.Exists(destPath))
-                File.Delete(destPath);
-            File.Move(tempPath, destPath);
-
-            model.Status = ModelStatus.Downloaded;
-            model.DownloadedPath = destPath;
-            model.DownloadProgress = 1.0;
-            progress?.Report(1.0);
             Log.Info("ModelService", $"Download complete: {modelId}");
         }
         catch (OperationCanceledException)
         {
             model.Status = ModelStatus.NotDownloaded;
             model.DownloadProgress = 0;
-            CleanupTempFile(modelId);
+            CleanupDownload(model);
             Log.Info("ModelService", $"Download cancelled: {modelId}");
         }
         catch (Exception ex)
         {
             model.Status = ModelStatus.Failed;
             model.DownloadProgress = 0;
-            CleanupTempFile(modelId);
+            CleanupDownload(model);
             Log.Error("ModelService", $"Download failed: {modelId}", ex);
             throw new ModelDownloadException($"Download failed: {ex.Message}", ex);
         }
@@ -185,6 +169,130 @@ public class ModelService
                 removedCts.Dispose();
             ModelsChanged?.Invoke();
         }
+    }
+
+    /// <summary>
+    /// Download a single-file model (e.g., Whisper .bin).
+    /// </summary>
+    private async Task DownloadSingleFileModelAsync(ModelInfo model, IProgress<double>? progress, CancellationToken ct)
+    {
+        var destPath = Path.Combine(_modelsDirectory, model.Id + ".bin");
+        var tempPath = destPath + ".tmp";
+
+        using var response = await _httpClient.GetAsync(
+            model.DownloadUrl,
+            HttpCompletionOption.ResponseHeadersRead,
+            ct);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1;
+
+        await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
+        await using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+
+        var buffer = new byte[81920];
+        long bytesRead = 0;
+        int read;
+        var lastProgressReport = DateTime.MinValue;
+
+        while ((read = await contentStream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+        {
+            await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
+            bytesRead += read;
+
+            var now = DateTime.UtcNow;
+            if (totalBytes > 0 && (now - lastProgressReport).TotalMilliseconds >= 200)
+            {
+                var progressValue = (double)bytesRead / totalBytes;
+                model.DownloadProgress = progressValue;
+                progress?.Report(progressValue);
+                ModelsChanged?.Invoke();
+                lastProgressReport = now;
+            }
+        }
+
+        await fileStream.FlushAsync(ct);
+        fileStream.Close();
+
+        // Verify SHA256 hash
+        await VerifyFileIntegrityAsync(tempPath, model.Sha256);
+
+        // Move temp file to final location
+        if (File.Exists(destPath))
+            File.Delete(destPath);
+        File.Move(tempPath, destPath);
+
+        model.Status = ModelStatus.Downloaded;
+        model.DownloadedPath = destPath;
+        model.DownloadProgress = 1.0;
+        progress?.Report(1.0);
+    }
+
+    /// <summary>
+    /// Download a directory-based model (e.g., Parakeet ONNX with multiple files).
+    /// </summary>
+    private async Task DownloadDirectoryModelAsync(ModelInfo model, IProgress<double>? progress, CancellationToken ct)
+    {
+        var finalDir = Path.Combine(_modelsDirectory, model.Id);
+        var tempDir = Path.Combine(_modelsDirectory, model.Id + ".downloading");
+
+        // Clean up any previous incomplete download
+        if (Directory.Exists(tempDir))
+            Directory.Delete(tempDir, true);
+        Directory.CreateDirectory(tempDir);
+
+        var totalSize = model.Files.Sum(f => f.Size);
+        long downloadedBytes = 0;
+
+        foreach (var file in model.Files)
+        {
+            var destPath = Path.Combine(tempDir, file.Filename);
+
+            using var response = await _httpClient.GetAsync(
+                file.DownloadUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                ct);
+            response.EnsureSuccessStatusCode();
+
+            await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
+            await using var fileStream = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+
+            var buffer = new byte[81920];
+            int read;
+            var lastProgressReport = DateTime.MinValue;
+
+            while ((read = await contentStream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+            {
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
+                downloadedBytes += read;
+
+                var now = DateTime.UtcNow;
+                if (totalSize > 0 && (now - lastProgressReport).TotalMilliseconds >= 200)
+                {
+                    var progressValue = (double)downloadedBytes / totalSize;
+                    model.DownloadProgress = progressValue;
+                    progress?.Report(progressValue);
+                    ModelsChanged?.Invoke();
+                    lastProgressReport = now;
+                }
+            }
+
+            await fileStream.FlushAsync(ct);
+            fileStream.Close();
+
+            // Verify SHA256 for this file
+            await VerifyFileIntegrityAsync(destPath, file.Sha256);
+        }
+
+        // Atomic move: rename temp dir to final location
+        if (Directory.Exists(finalDir))
+            Directory.Delete(finalDir, true);
+        Directory.Move(tempDir, finalDir);
+
+        model.Status = ModelStatus.Downloaded;
+        model.DownloadedPath = finalDir;
+        model.DownloadProgress = 1.0;
+        progress?.Report(1.0);
     }
 
     /// <summary>
@@ -206,10 +314,18 @@ public class ModelService
         var model = GetModel(modelId)
             ?? throw new InvalidOperationException("Model not found");
 
-        if (model.DownloadedPath != null && File.Exists(model.DownloadedPath))
+        if (model.DownloadedPath != null)
         {
-            File.Delete(model.DownloadedPath);
+            if (model.IsDirectory && Directory.Exists(model.DownloadedPath))
+                Directory.Delete(model.DownloadedPath, true);
+            else if (File.Exists(model.DownloadedPath))
+                File.Delete(model.DownloadedPath);
         }
+
+        // Also clean up temp download directory
+        var tempDir = Path.Combine(_modelsDirectory, modelId + ".downloading");
+        if (Directory.Exists(tempDir))
+            try { Directory.Delete(tempDir, true); } catch { }
 
         model.Status = ModelStatus.NotDownloaded;
         model.DownloadedPath = null;
@@ -284,10 +400,14 @@ public class ModelService
         }
     }
 
-    private void CleanupTempFile(string modelId)
+    private void CleanupDownload(ModelInfo model)
     {
-        var tempPath = Path.Combine(_modelsDirectory, modelId + ".bin.tmp");
+        // Clean up single-file temp
+        var tempPath = Path.Combine(_modelsDirectory, model.Id + ".bin.tmp");
         try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        // Clean up directory download temp
+        var tempDir = Path.Combine(_modelsDirectory, model.Id + ".downloading");
+        try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
     }
 }
 

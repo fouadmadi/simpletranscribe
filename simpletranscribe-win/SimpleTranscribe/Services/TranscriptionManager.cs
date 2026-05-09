@@ -1,18 +1,28 @@
 using System.Runtime.InteropServices;
 using SimpleTranscribe.Interop;
+using SimpleTranscribe.Models;
+using SherpaOnnx;
 
 namespace SimpleTranscribe.Services;
 
 /// <summary>
-/// Manages Whisper model loading, audio accumulation, and transcription.
-/// Port of macOS TranscriptionManager.swift using whisper.cpp P/Invoke.
-/// Thread-safe: all access to the native whisper context is synchronized via _ctxLock.
+/// Manages Whisper and Parakeet model loading, audio accumulation, and transcription.
+/// Port of macOS TranscriptionManager.swift using whisper.cpp P/Invoke and sherpa-onnx.
+/// Thread-safe: all access to the native contexts is synchronized via _ctxLock.
 /// </summary>
 public class TranscriptionManager : IDisposable
 {
     private static readonly AppLogger Log = AppLogger.Instance;
 
+    // Whisper backend
     private nint _ctx;
+
+    // Parakeet backend (sherpa-onnx)
+    private OfflineRecognizer? _parakeetRecognizer;
+
+    // Track which backend is active
+    private ModelType _loadedModelType = ModelType.Whisper;
+
     private readonly List<float> _accumulatedAudio = new();
     private readonly SemaphoreSlim _audioLock = new(1, 1);
     private readonly SemaphoreSlim _ctxLock = new(1, 1);
@@ -42,20 +52,40 @@ public class TranscriptionManager : IDisposable
         }
     }
 
-    public bool IsModelLoaded => Volatile.Read(ref _ctx) != nint.Zero;
+    public bool IsModelLoaded => Volatile.Read(ref _ctx) != nint.Zero || _parakeetRecognizer != null;
 
     public event Action<bool>? IsTranscribingChanged;
 
     /// <summary>
-    /// Load a Whisper model from the given file path.
+    /// Load a model from the given file path or directory.
     /// Waits for any in-flight inference to complete before swapping the context.
     /// </summary>
-    public async Task LoadModelAsync(string modelPath)
+    public async Task LoadModelAsync(string modelPath, ModelType modelType = ModelType.Whisper)
+    {
+        switch (modelType)
+        {
+            case ModelType.Whisper:
+                await LoadWhisperModelAsync(modelPath);
+                break;
+            case ModelType.Parakeet:
+                await LoadParakeetModelAsync(modelPath);
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported model type: {modelType}");
+        }
+
+        _loadedModelType = modelType;
+    }
+
+    /// <summary>
+    /// Load a Whisper model from a .bin file.
+    /// </summary>
+    private async Task LoadWhisperModelAsync(string modelPath)
     {
         if (!File.Exists(modelPath))
             throw new FileNotFoundException("Model file not found", modelPath);
 
-        Log.Info("Transcription", $"Loading model: {Path.GetFileName(modelPath)}");
+        Log.Info("Transcription", $"Loading Whisper model: {Path.GetFileName(modelPath)}");
 
         await _ctxLock.WaitAsync();
         try
@@ -67,7 +97,55 @@ public class TranscriptionManager : IDisposable
                 throw new InvalidOperationException($"Failed to load model from {Path.GetFileName(modelPath)}");
 
             Volatile.Write(ref _ctx, ctx);
-            Log.Info("Transcription", "Model loaded successfully");
+            Log.Info("Transcription", "Whisper model loaded successfully");
+        }
+        finally
+        {
+            _ctxLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Load a Parakeet ONNX model from a directory containing encoder, decoder, joiner, and tokens.
+    /// </summary>
+    private async Task LoadParakeetModelAsync(string modelDirectory)
+    {
+        if (!Directory.Exists(modelDirectory))
+            throw new DirectoryNotFoundException($"Parakeet model directory not found: {modelDirectory}");
+
+        var requiredFiles = new[] { "encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt" };
+        foreach (var file in requiredFiles)
+        {
+            var filePath = Path.Combine(modelDirectory, file);
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"Missing required file: {file}", filePath);
+        }
+
+        Log.Info("Transcription", $"Loading Parakeet model from: {Path.GetFileName(modelDirectory)}");
+
+        await _ctxLock.WaitAsync();
+        try
+        {
+            FreeModelUnsafe();
+
+            _parakeetRecognizer = await Task.Run(() =>
+            {
+                var config = new OfflineRecognizerConfig();
+                config.FeatConfig.SampleRate = 16000;
+                config.FeatConfig.FeatureDim = 80;
+
+                config.ModelConfig.Transducer.Encoder = Path.Combine(modelDirectory, "encoder.int8.onnx");
+                config.ModelConfig.Transducer.Decoder = Path.Combine(modelDirectory, "decoder.int8.onnx");
+                config.ModelConfig.Transducer.Joiner = Path.Combine(modelDirectory, "joiner.int8.onnx");
+                config.ModelConfig.Tokens = Path.Combine(modelDirectory, "tokens.txt");
+                config.ModelConfig.NumThreads = Math.Max(1, Environment.ProcessorCount);
+                config.ModelConfig.Provider = "cpu";
+                config.DecodingMethod = "greedy_search";
+
+                return new OfflineRecognizer(config);
+            });
+
+            Log.Info("Transcription", "Parakeet model loaded successfully");
         }
         finally
         {
@@ -125,7 +203,7 @@ public class TranscriptionManager : IDisposable
     {
         try
         {
-            if (Volatile.Read(ref _ctx) == nint.Zero)
+            if (!IsModelLoaded)
                 throw new InvalidOperationException("Model not loaded");
 
             // Take a snapshot of accumulated audio
@@ -145,16 +223,18 @@ public class TranscriptionManager : IDisposable
 
             Log.Info("Transcription", $"Processing {audioSnapshot.Length} samples ({audioSnapshot.Length / 16000.0:F1}s)");
 
-            // Run whisper inference on background thread, holding context lock
             var text = await Task.Run(async () =>
             {
                 await _ctxLock.WaitAsync();
                 try
                 {
+                    if (_loadedModelType == ModelType.Parakeet && _parakeetRecognizer != null)
+                        return RunParakeetInference(_parakeetRecognizer, audioSnapshot);
+
                     var ctx = Volatile.Read(ref _ctx);
                     if (ctx == nint.Zero)
                         throw new InvalidOperationException("Model was unloaded during inference");
-                    return RunInference(ctx, audioSnapshot, language);
+                    return RunWhisperInference(ctx, audioSnapshot, language);
                 }
                 finally
                 {
@@ -169,7 +249,7 @@ public class TranscriptionManager : IDisposable
         }
     }
 
-    private static string RunInference(nint ctx, float[] audio, string language)
+    private static string RunWhisperInference(nint ctx, float[] audio, string language)
     {
         using var pars = WhisperParams.CreateDefault(WhisperSamplingStrategy.Greedy);
 
@@ -202,7 +282,16 @@ public class TranscriptionManager : IDisposable
         return string.Join(" ", texts);
     }
 
-    /// <summary>Free the native context. Caller must hold _ctxLock.</summary>
+    /// <summary>Run Parakeet (sherpa-onnx) offline transducer inference.</summary>
+    private static string RunParakeetInference(OfflineRecognizer recognizer, float[] audio)
+    {
+        using var stream = recognizer.CreateStream();
+        stream.AcceptWaveform(16000, audio);
+        recognizer.Decode(stream);
+        return stream.Result.Text;
+    }
+
+    /// <summary>Free all native contexts. Caller must hold _ctxLock.</summary>
     private void FreeModelUnsafe()
     {
         var ctx = Volatile.Read(ref _ctx);
@@ -211,6 +300,9 @@ public class TranscriptionManager : IDisposable
             WhisperNative.Free(ctx);
             Volatile.Write(ref _ctx, nint.Zero);
         }
+
+        _parakeetRecognizer?.Dispose();
+        _parakeetRecognizer = null;
     }
 
     public void Dispose()

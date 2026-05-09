@@ -13,6 +13,9 @@ class TranscriptionManager {
     @ObservationIgnored private var accumulatedAudio: [Float] = []
     private let audioLock = NSLock()
     
+    // Track which engine type is loaded
+    private var loadedModelType: ModelType = .whisper
+    
     private static let languageMap: [String: WhisperLanguage] = [
         "auto": .auto,
         "en": .english,
@@ -24,7 +27,30 @@ class TranscriptionManager {
     
     init() {}
     
-    func loadModel(modelPath: URL) async throws {
+    func loadModel(modelPath: URL, modelType: ModelType = .whisper) async throws {
+        // Clean up the other backend before loading
+        #if SHERPA_ONNX
+        if modelType == .whisper {
+            await MainActor.run { self.parakeetRecognizer = nil }
+        } else {
+            await MainActor.run { self.whisper = nil }
+        }
+        #endif
+        
+        switch modelType {
+        case .whisper:
+            try await loadWhisperModel(modelPath: modelPath)
+        case .parakeet:
+            try await loadParakeetModel(modelDirectory: modelPath)
+        }
+        
+        // Set model type only after successful load
+        loadedModelType = modelType
+    }
+    
+    // MARK: - Whisper Backend
+    
+    private func loadWhisperModel(modelPath: URL) async throws {
         guard FileManager.default.fileExists(atPath: modelPath.path) else {
             throw NSError(domain: "WhisperError", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Model file not found at \(modelPath.lastPathComponent)"])
@@ -46,6 +72,76 @@ class TranscriptionManager {
         }
     }
     
+    // MARK: - Parakeet Backend (ONNX Runtime)
+    
+    #if SHERPA_ONNX
+    // sherpa-onnx offline recognizer for Parakeet models
+    private var parakeetRecognizer: SherpaOnnxOfflineRecognizer?
+    
+    private func loadParakeetModel(modelDirectory: URL) async throws {
+        // Verify directory exists and required files are present
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: modelDirectory.path, isDirectory: &isDir),
+              isDir.boolValue else {
+            throw NSError(domain: "ParakeetError", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Parakeet model directory not found at \(modelDirectory.lastPathComponent)"])
+        }
+        
+        let requiredFiles = ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"]
+        for file in requiredFiles {
+            let filePath = modelDirectory.appending(path: file)
+            guard FileManager.default.fileExists(atPath: filePath.path) else {
+                throw NSError(domain: "ParakeetError", code: 2,
+                              userInfo: [NSLocalizedDescriptionKey: "Missing required file: \(file)"])
+            }
+        }
+        
+        // Free Whisper model if one was loaded
+        await MainActor.run {
+            self.whisper = nil
+        }
+        
+        let encoderPath = modelDirectory.appending(path: "encoder.int8.onnx").path
+        let decoderPath = modelDirectory.appending(path: "decoder.int8.onnx").path
+        let joinerPath = modelDirectory.appending(path: "joiner.int8.onnx").path
+        let tokensPath = modelDirectory.appending(path: "tokens.txt").path
+        let numThreads = max(1, ProcessInfo.processInfo.activeProcessorCount)
+        
+        let recognizer = await Task.detached(priority: .userInitiated) {
+            let transducerConfig = sherpaOnnxOfflineTransducerModelConfig(
+                encoder: encoderPath,
+                decoder: decoderPath,
+                joiner: joinerPath
+            )
+            
+            let modelConfig = sherpaOnnxOfflineModelConfig(
+                tokens: tokensPath,
+                transducer: transducerConfig,
+                numThreads: numThreads,
+                provider: "cpu"
+            )
+            
+            let featConfig = sherpaOnnxFeatureConfig(sampleRate: 16000, featureDim: 80)
+            
+            var config = sherpaOnnxOfflineRecognizerConfig(
+                featConfig: featConfig,
+                modelConfig: modelConfig
+            )
+            
+            return SherpaOnnxOfflineRecognizer(config: &config)
+        }.value
+        
+        await MainActor.run {
+            self.parakeetRecognizer = recognizer
+        }
+    }
+    #else
+    private func loadParakeetModel(modelDirectory: URL) async throws {
+        throw NSError(domain: "ParakeetError", code: 99,
+                      userInfo: [NSLocalizedDescriptionKey: "Parakeet support requires sherpa-onnx. Add -DSHERPA_ONNX to Swift flags after installing the xcframeworks."])
+    }
+    #endif
+    
     /// Configure whisper params for optimal transcription speed
     private func configureParams() {
         guard let params = whisper?.params else { return }
@@ -64,9 +160,11 @@ class TranscriptionManager {
         audioLock.unlock()
         self.isTranscribing = true
         
-        let whisperLanguage = Self.languageMap[language] ?? .english
-        
-        self.whisper?.params.language = whisperLanguage
+        // Language setting only applies to Whisper models
+        if loadedModelType == .whisper {
+            let whisperLanguage = Self.languageMap[language] ?? .english
+            self.whisper?.params.language = whisperLanguage
+        }
     }
         
     private static let maxSamples = 30 * 60 * 16_000  // 30 minutes at 16kHz
@@ -97,20 +195,29 @@ class TranscriptionManager {
             }
         }
         
-        guard let whisper = whisper else {
-            throw NSError(domain: "WhisperError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Model not loaded"])
-        }
-        
         let audioSnapshot = takeAudioSnapshot()
-        
         guard !audioSnapshot.isEmpty else { return "" }
         
-        // SwiftWhisper transcribe returns [Segment] synchronously or via delegate, but it also has async methods depending on version.
-        // The most standard way in SwiftWhisper 1.0.0+ is to use the async `transcribe` function.
-        let segments = try await whisper.transcribe(audioFrames: audioSnapshot)
-        
-        let text = segments.map { $0.text }.joined(separator: " ")
-        
-        return text
+        switch loadedModelType {
+        case .whisper:
+            guard let whisper = whisper else {
+                throw NSError(domain: "WhisperError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Whisper model not loaded"])
+            }
+            let segments = try await whisper.transcribe(audioFrames: audioSnapshot)
+            return segments.map { $0.text }.joined(separator: " ")
+            
+        case .parakeet:
+            #if SHERPA_ONNX
+            guard let recognizer = parakeetRecognizer else {
+                throw NSError(domain: "ParakeetError", code: 4, userInfo: [NSLocalizedDescriptionKey: "Parakeet model not loaded"])
+            }
+            let result = await Task.detached(priority: .userInitiated) {
+                recognizer.decode(samples: audioSnapshot, sampleRate: 16_000)
+            }.value
+            return result.text
+            #else
+            throw NSError(domain: "ParakeetError", code: 99, userInfo: [NSLocalizedDescriptionKey: "Parakeet support not compiled. Add -DSHERPA_ONNX to Swift flags."])
+            #endif
+        }
     }
 }

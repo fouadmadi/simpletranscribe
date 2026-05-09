@@ -1,8 +1,23 @@
 namespace SimpleTranscribe.Models;
 
 /// <summary>
-/// Represents metadata and status of a Whisper model.
-/// Mirrors the macOS ModelInfo.swift struct.
+/// The inference engine a model uses.
+/// </summary>
+public enum ModelType { Whisper, Parakeet }
+
+/// <summary>
+/// Describes a single file within a directory-based model (e.g., Parakeet ONNX).
+/// </summary>
+public class ModelFile
+{
+    public string Filename { get; init; } = "";
+    public Uri DownloadUrl { get; init; } = null!;
+    public long Size { get; init; }
+    public string? Sha256 { get; init; }
+}
+
+/// <summary>
+/// Represents metadata and status of a speech-to-text model.
 /// </summary>
 public class ModelInfo
 {
@@ -13,6 +28,9 @@ public class ModelInfo
     public Uri DownloadUrl { get; init; } = null!;
     public string Language { get; init; } = "en";
     public string? Sha256 { get; init; }
+    public ModelType ModelType { get; init; } = ModelType.Whisper;
+    public bool IsDirectory { get; init; } = false;
+    public List<ModelFile> Files { get; init; } = new();
 
     // Local state
     public ModelStatus Status { get; set; } = ModelStatus.NotDownloaded;

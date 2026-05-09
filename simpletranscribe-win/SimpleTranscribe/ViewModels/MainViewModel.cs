@@ -142,7 +142,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            await _transcriptionManager.LoadModelAsync(modelPath);
+            var model = _modelService.GetModel(SelectedModelId);
+            var modelType = model?.ModelType ?? ModelType.Whisper;
+            await _transcriptionManager.LoadModelAsync(modelPath, modelType);
             ModelLoaded = true;
         }
         catch (Exception ex)

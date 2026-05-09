@@ -190,7 +190,8 @@ class AppModel {
         errorMessage = nil
 
         do {
-            try await transcriptionManager?.loadModel(modelPath: modelPath)
+            let modelType = currentModel?.modelType ?? .whisper
+            try await transcriptionManager?.loadModel(modelPath: modelPath, modelType: modelType)
             modelLoaded = true
             isLoadingModel = false
             errorMessage = nil

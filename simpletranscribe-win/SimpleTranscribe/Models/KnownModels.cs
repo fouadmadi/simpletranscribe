@@ -1,13 +1,55 @@
 namespace SimpleTranscribe.Models;
 
 /// <summary>
-/// Hardcoded registry of known Whisper models.
+/// Hardcoded registry of known speech-to-text models.
 /// Mirrors the macOS KnownModels.swift — same model IDs, URLs, sizes, and SHA256 hashes.
 /// </summary>
 public static class KnownModels
 {
+    private const string ParakeetV2HFBase = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/main/";
+    private const string ParakeetV3HFBase = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/";
+
     public static readonly IReadOnlyList<ModelInfo> All = new List<ModelInfo>
     {
+        // Parakeet TDT 0.6B v2 (INT8) — English only, fast and accurate
+        new()
+        {
+            Id = "parakeet-tdt-0.6b-v2",
+            Name = "Parakeet V2 (English)",
+            Description = "Fast • High accuracy • English only",
+            Size = 661_190_513,
+            DownloadUrl = new Uri(ParakeetV2HFBase + "encoder.int8.onnx"),
+            Language = "en",
+            ModelType = ModelType.Parakeet,
+            IsDirectory = true,
+            Files = new List<ModelFile>
+            {
+                new() { Filename = "encoder.int8.onnx", DownloadUrl = new Uri(ParakeetV2HFBase + "encoder.int8.onnx"), Size = 652_184_296, Sha256 = "a32b12d17bbbc309d0686fbbcc2987b5e9b8333a7da83fa6b089f0a2acd651ab" },
+                new() { Filename = "decoder.int8.onnx", DownloadUrl = new Uri(ParakeetV2HFBase + "decoder.int8.onnx"), Size = 7_257_753, Sha256 = "b6bb64963457237b900e496ee9994b59294526439fbcc1fecf705b31a15c6b4e" },
+                new() { Filename = "joiner.int8.onnx", DownloadUrl = new Uri(ParakeetV2HFBase + "joiner.int8.onnx"), Size = 1_739_080, Sha256 = "7946164367946e7f9f29a122407c3252b680dbae9a51343eb2488d057c3c43d2" },
+                new() { Filename = "tokens.txt", DownloadUrl = new Uri(ParakeetV2HFBase + "tokens.txt"), Size = 9_384 },
+            }
+        },
+        // Parakeet TDT 0.6B v3 (INT8) — Multilingual (25 EU languages + RU/UK)
+        new()
+        {
+            Id = "parakeet-tdt-0.6b-v3",
+            Name = "Parakeet V3 (Multilingual)",
+            Description = "Fast • High accuracy • 27 languages",
+            Size = 670_478_772,
+            DownloadUrl = new Uri(ParakeetV3HFBase + "encoder.int8.onnx"),
+            Language = "multilingual",
+            ModelType = ModelType.Parakeet,
+            IsDirectory = true,
+            Files = new List<ModelFile>
+            {
+                new() { Filename = "encoder.int8.onnx", DownloadUrl = new Uri(ParakeetV3HFBase + "encoder.int8.onnx"), Size = 652_184_281, Sha256 = "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247" },
+                new() { Filename = "decoder.int8.onnx", DownloadUrl = new Uri(ParakeetV3HFBase + "decoder.int8.onnx"), Size = 11_845_275, Sha256 = "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e" },
+                new() { Filename = "joiner.int8.onnx", DownloadUrl = new Uri(ParakeetV3HFBase + "joiner.int8.onnx"), Size = 6_355_277, Sha256 = "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3" },
+                new() { Filename = "tokens.txt", DownloadUrl = new Uri(ParakeetV3HFBase + "tokens.txt"), Size = 93_939 },
+            }
+        },
+        // Whisper models
         new()
         {
             Id = "ggml-tiny.en",
