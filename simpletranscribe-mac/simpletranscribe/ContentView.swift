@@ -31,6 +31,7 @@ struct ContentView: View {
                 selectedLanguage: $appModel.selectedLanguage,
                 useSystemDefault: $appModel.useSystemDefault,
                 hotKeyModifiers: $appModel.hotKeyModifiers,
+                streamingEnabled: $appModel.streamingEnabled,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
             )
@@ -53,6 +54,8 @@ struct ContentView: View {
                 TranscriptResultsView(
                     transcribedText: $appModel.transcribedText,
                     showCopiedAlert: $showCopiedAlert,
+                    liveTranscriptText: appModel.liveTranscriptText,
+                    isRecording: appModel.isRecording,
                     onCopy: copyToClipboard
                 )
                 .frame(minWidth: 300)

@@ -21,6 +21,10 @@ class AppModel {
         }
     }
     var transcribedText: String = ""
+    var liveTranscriptText: String = ""
+    var streamingEnabled: Bool = UserDefaults.standard.bool(forKey: "streamingEnabled") {
+        didSet { UserDefaults.standard.set(streamingEnabled, forKey: "streamingEnabled") }
+    }
     var selectedLanguage: String = UserDefaults.standard.string(forKey: "selectedLanguage") ?? "en" {
         didSet { UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage") }
     }
@@ -84,6 +88,7 @@ class AppModel {
     // Track the app the user was in when recording started (for paste-back)
     @ObservationIgnored private var previousApp: NSRunningApplication?
     @ObservationIgnored private var recordingStartTime: Date?
+    @ObservationIgnored private var streamingTranscriber: StreamingTranscriber?
 
     var currentModel: ModelInfo? {
         modelService.getModel(selectedModelID)
@@ -192,6 +197,16 @@ class AppModel {
             self.recordingLock.unlock()
             if recording {
                 self.transcriptionManager?.appendAudio(buffer: buffer)
+                // Streaming preview path (Whisper-only)
+                if self.streamingEnabled, let streamer = self.streamingTranscriber {
+                    Task {
+                        if let partial = await streamer.feed(samples: buffer) {
+                            await MainActor.run {
+                                self.liveTranscriptText += (self.liveTranscriptText.isEmpty ? "" : " ") + partial
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -266,6 +281,7 @@ class AppModel {
 
             do {
                 self.transcribedText = ""
+                self.liveTranscriptText = ""
                 transcriptionManager.startTranscription(language: self.selectedLanguage)
                 self.isRecording = true
                 self.recordingStartTime = Date()
@@ -273,6 +289,15 @@ class AppModel {
                 self.overlayState = .recording
                 try audioManager.startRecording(device: self.selectedInputDevice)
                 SoundManager.playRecordingStarted()
+
+                // Start streaming preview for Whisper models
+                if self.streamingEnabled,
+                   let whisper = transcriptionManager.whisper,
+                   self.currentModel?.modelType == .whisper {
+                    let streamer = StreamingTranscriber()
+                    self.streamingTranscriber = streamer
+                    Task { await streamer.start(whisper: whisper) }
+                }
             } catch {
                 self.errorMessage = "Failed to start recording: \(error.localizedDescription)"
                 self.isRecording = false
@@ -293,6 +318,13 @@ class AppModel {
         errorMessage = nil
         showTranscriptionStarted = false
         overlayState = .transcribing
+
+        // Stop streaming and clear preview before batch result arrives
+        if let streamer = streamingTranscriber {
+            streamingTranscriber = nil
+            Task { await streamer.stop() }
+        }
+        liveTranscriptText = ""
 
         Task { @MainActor in
             do {

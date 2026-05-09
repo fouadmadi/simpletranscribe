@@ -14,6 +14,7 @@ public sealed partial class SettingsPanel : UserControl
     public event EventHandler<string>? LanguageChanged;
     public event EventHandler<bool>? UseSystemDefaultChanged;
     public event EventHandler<(int vKey, int modifierVKey)>? HotKeyChanged;
+    public event EventHandler<bool>? StreamingChanged;
 
     private bool _suppressEvents;
     private bool _isRecordingHotKey;
@@ -213,6 +214,21 @@ public sealed partial class SettingsPanel : UserControl
         HotKeyBox.Text = FormatHotKey(defaultModVKey, defaultVKey);
         HotKeyConflictText.Visibility = Visibility.Collapsed;
         HotKeyChanged?.Invoke(this, (defaultVKey, defaultModVKey));
+    }
+
+    // --- Streaming toggle ---
+
+    public void UpdateStreaming(bool enabled)
+    {
+        _suppressEvents = true;
+        StreamingCheckBox.IsChecked = enabled;
+        _suppressEvents = false;
+    }
+
+    private void OnStreamingChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        StreamingChanged?.Invoke(this, StreamingCheckBox.IsChecked == true);
     }
 
     private static string FormatHotKey(int modVKey, int vKey)

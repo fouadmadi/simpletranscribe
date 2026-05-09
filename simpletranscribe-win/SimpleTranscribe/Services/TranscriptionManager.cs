@@ -32,14 +32,34 @@ public class TranscriptionManager : IDisposable
     // 30 minutes at 16kHz — matches macOS maxSamples
     private const int MaxSamples = 30 * 60 * 16_000;
 
+    // Expose for streaming transcriber (read-only via properties)
+    internal nint SharedCtx => Volatile.Read(ref _ctx);
+    internal SemaphoreSlim SharedCtxLock => _ctxLock;
+    internal bool IsWhisperLoaded => _loadedModelType == ModelType.Whisper && Volatile.Read(ref _ctx) != nint.Zero;
+
     private static readonly Dictionary<string, string> LanguageMap = new()
     {
-        ["auto"] = "auto",
-        ["en"] = "en",
-        ["es"] = "es",
-        ["fr"] = "fr",
-        ["de"] = "de",
-        ["zh"] = "zh",
+        ["auto"] = "auto", ["af"] = "af", ["ak"] = "ak", ["am"] = "am", ["ar"] = "ar",
+        ["as"] = "as", ["az"] = "az", ["ba"] = "ba", ["be"] = "be", ["bg"] = "bg",
+        ["bn"] = "bn", ["bo"] = "bo", ["br"] = "br", ["bs"] = "bs", ["ca"] = "ca",
+        ["cs"] = "cs", ["cy"] = "cy", ["da"] = "da", ["de"] = "de", ["el"] = "el",
+        ["en"] = "en", ["es"] = "es", ["et"] = "et", ["eu"] = "eu", ["fa"] = "fa",
+        ["fi"] = "fi", ["fo"] = "fo", ["fr"] = "fr", ["gl"] = "gl", ["gu"] = "gu",
+        ["ha"] = "ha", ["haw"] = "haw", ["he"] = "he", ["hi"] = "hi", ["hr"] = "hr",
+        ["ht"] = "ht", ["hu"] = "hu", ["hy"] = "hy", ["id"] = "id", ["is"] = "is",
+        ["it"] = "it", ["ja"] = "ja", ["jw"] = "jw", ["ka"] = "ka", ["kk"] = "kk",
+        ["km"] = "km", ["kn"] = "kn", ["ko"] = "ko", ["la"] = "la", ["lb"] = "lb",
+        ["ln"] = "ln", ["lo"] = "lo", ["lt"] = "lt", ["lv"] = "lv", ["mg"] = "mg",
+        ["mi"] = "mi", ["mk"] = "mk", ["ml"] = "ml", ["mn"] = "mn", ["mr"] = "mr",
+        ["ms"] = "ms", ["mt"] = "mt", ["my"] = "my", ["ne"] = "ne", ["nl"] = "nl",
+        ["nn"] = "nn", ["no"] = "no", ["oc"] = "oc", ["pa"] = "pa", ["pl"] = "pl",
+        ["ps"] = "ps", ["pt"] = "pt", ["ro"] = "ro", ["ru"] = "ru", ["sa"] = "sa",
+        ["sd"] = "sd", ["si"] = "si", ["sk"] = "sk", ["sl"] = "sl", ["sn"] = "sn",
+        ["so"] = "so", ["sq"] = "sq", ["sr"] = "sr", ["su"] = "su", ["sv"] = "sv",
+        ["sw"] = "sw", ["ta"] = "ta", ["te"] = "te", ["tg"] = "tg", ["th"] = "th",
+        ["tk"] = "tk", ["tl"] = "tl", ["tr"] = "tr", ["tt"] = "tt", ["ug"] = "ug",
+        ["uk"] = "uk", ["ur"] = "ur", ["uz"] = "uz", ["vi"] = "vi", ["yi"] = "yi",
+        ["yo"] = "yo", ["yue"] = "yue", ["zh"] = "zh",
     };
 
     public bool IsTranscribing

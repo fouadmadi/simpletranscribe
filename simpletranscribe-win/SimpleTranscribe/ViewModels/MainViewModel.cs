@@ -31,6 +31,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _transcribedText = "";
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private OverlayState _overlayState = OverlayState.Idle;
+    [ObservableProperty] private string _liveTranscriptText = "";
+    [ObservableProperty] private bool _streamingEnabled;
+
+    private StreamingTranscriber? _streamingTranscriber;
 
     [ObservableProperty] private string _selectedLanguage;
     [ObservableProperty] private string _selectedModelId;
@@ -74,12 +78,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _useSystemDefault = GetSetting("useSystemDefault", "True") == "True";
         _hotKeyVKey = int.TryParse(GetSetting("hotKeyVKey"), out var vk) ? vk : Win32Interop.VK_SPACE;
         _hotKeyModifierVKey = int.TryParse(GetSetting("hotKeyModifierVKey"), out var mod) ? mod : Win32Interop.VK_CONTROL;
+        _streamingEnabled = GetSetting("streamingEnabled", "False") == "True";
 
-        // Wire up audio buffer relay
+        // Wire up audio buffer relay — feeds both accumulator and streaming transcriber
         _audioManager.OnBufferReceived += buffer =>
         {
             if (IsRecording)
+            {
                 _transcriptionManager.AppendAudio(buffer);
+                if (_streamingTranscriber != null)
+                {
+                    // Fire-and-forget: update live text when a chunk is ready
+                    _ = _streamingTranscriber.FeedAsync(buffer).ContinueWith(t =>
+                    {
+                        var partial = t.Result;
+                        if (partial != null && _syncContext != null)
+                            _syncContext.Post(_ => LiveTranscriptText = partial, null);
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                }
+            }
         };
 
         _audioManager.OnError += ex =>
@@ -128,6 +145,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // --- Settings persistence ---
 
     partial void OnSelectedLanguageChanged(string value) => SaveSetting("language", value);
+    partial void OnStreamingEnabledChanged(bool value) => SaveSetting("streamingEnabled", value.ToString());
     partial void OnHotKeyVKeyChanged(int value)
     {
         SaveSetting("hotKeyVKey", value.ToString());
@@ -237,6 +255,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayState = OverlayState.Recording;
             _audioManager.StartRecording(SelectedDeviceId);
             SoundManager.PlayRecordingStarted();
+
+            // Start streaming preview if enabled and a Whisper model is loaded
+            if (StreamingEnabled && _transcriptionManager.IsWhisperLoaded)
+            {
+                _streamingTranscriber = new StreamingTranscriber(
+                    _transcriptionManager.SharedCtx,
+                    _transcriptionManager.SharedCtxLock,
+                    SelectedLanguage);
+                _streamingTranscriber.Start();
+            }
         }
         catch (Exception ex)
         {
@@ -256,6 +284,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ErrorMessage = null;
         ShowTranscriptionStarted = false;
         OverlayState = OverlayState.Transcribing;
+
+        // Stop streaming preview
+        _streamingTranscriber?.Stop();
+        _streamingTranscriber?.Dispose();
+        _streamingTranscriber = null;
+        LiveTranscriptText = "";
 
         try
         {

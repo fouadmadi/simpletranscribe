@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window
             _vm.HotKeyVKey = combo.vKey;
             _vm.HotKeyModifierVKey = combo.modifierVKey;
         };
+        Settings.StreamingChanged += (_, enabled) => _vm.StreamingEnabled = enabled;
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
@@ -96,6 +97,10 @@ public sealed partial class MainWindow : Window
                     TranscriptResults.Text = _vm.TranscribedText;
                     break;
 
+                case nameof(MainViewModel.LiveTranscriptText):
+                    TranscriptResults.LiveText = _vm.LiveTranscriptText;
+                    break;
+
                 case nameof(MainViewModel.ErrorMessage):
                     UpdateErrorBanner();
                     break;
@@ -141,6 +146,7 @@ public sealed partial class MainWindow : Window
         Settings.UpdateModels(_vm.DownloadedModels, _vm.SelectedModelId);
         Settings.UpdateLanguages(_vm.AvailableLanguages, _vm.SelectedLanguage);
         Settings.UpdateHotKey(_vm.HotKeyVKey, _vm.HotKeyModifierVKey);
+        Settings.UpdateStreaming(_vm.StreamingEnabled);
         TranscriptResults.Text = _vm.TranscribedText;
         UpdateModelBanner();
         UpdateErrorBanner();

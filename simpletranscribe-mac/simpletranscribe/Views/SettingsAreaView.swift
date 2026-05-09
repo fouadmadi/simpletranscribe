@@ -75,6 +75,7 @@ struct SettingsAreaView: View {
     @Binding var selectedLanguage: String
     @Binding var useSystemDefault: Bool
     @Binding var hotKeyModifiers: NSEvent.ModifierFlags
+    @Binding var streamingEnabled: Bool
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
@@ -125,6 +126,12 @@ struct SettingsAreaView: View {
                     .foregroundColor(.secondary)
                 HotKeyRecorderView(modifiers: $hotKeyModifiers)
             }
+
+            Toggle("Live preview", isOn: $streamingEnabled)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .help("Show partial transcription while recording (Whisper models, lower accuracy)")
+                .disabled(downloadedModels.first(where: { $0.id == selectedModelID })?.modelType == .parakeet)
 
             Spacer()
         }

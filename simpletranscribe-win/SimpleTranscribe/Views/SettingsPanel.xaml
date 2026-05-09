@@ -63,6 +63,16 @@
                                  Padding="0"
                                  Click="HotKeyReset_Click" />
             </StackPanel>
+
+            <!-- Live preview toggle -->
+            <StackPanel Spacing="4" VerticalAlignment="Center">
+                <CheckBox x:Name="StreamingCheckBox"
+                          Content="Live preview"
+                          FontSize="12"
+                          ToolTipService.ToolTip="Show partial transcription while recording (Whisper only)"
+                          Checked="OnStreamingChanged"
+                          Unchecked="OnStreamingChanged" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

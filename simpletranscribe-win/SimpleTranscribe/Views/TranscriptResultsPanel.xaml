@@ -4,8 +4,10 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid>
-        <TextBox x:Name="TranscriptTextBox"
+    <Grid RowDefinitions="*,Auto">
+
+        <TextBox Grid.Row="0"
+                 x:Name="TranscriptTextBox"
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
                  IsSpellCheckEnabled="False"
@@ -18,8 +20,24 @@
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                  TextChanged="OnTextChanged" />
 
-        <!-- Copy button overlay (bottom-right) -->
+        <!-- Live preview strip (shown while recording if streaming is enabled) -->
+        <Border Grid.Row="1"
+                x:Name="LivePreviewBorder"
+                Background="{ThemeResource ControlAltFillColorTertiaryBrush}"
+                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,8"
+                Visibility="Collapsed">
+            <TextBlock x:Name="LivePreviewText"
+                       TextWrapping="Wrap"
+                       FontStyle="Italic"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       FontSize="13" />
+        </Border>
+
+        <!-- Copy button overlay (bottom-right of row 0) -->
         <Button x:Name="CopyButton"
+                Grid.Row="0"
                 Click="OnCopy"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Right"
@@ -31,6 +49,7 @@
 
         <!-- Copied tooltip -->
         <TeachingTip x:Name="CopiedTip"
+                     Grid.Row="0"
                      Target="{x:Bind CopyButton}"
                      Title="Copied!"
                      IsLightDismissEnabled="True"

@@ -26,6 +26,21 @@ public sealed partial class TranscriptResultsPanel : UserControl
         }
     }
 
+    /// <summary>
+    /// Live partial transcription text shown while recording. Set to empty string to hide.
+    /// </summary>
+    public string LiveText
+    {
+        get => LivePreviewText.Text;
+        set
+        {
+            LivePreviewText.Text = value;
+            LivePreviewBorder.Visibility = string.IsNullOrEmpty(value)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+    }
+
     private void OnTextChanged(object sender, TextChangedEventArgs e)
     {
         if (!_suppressEvents)
