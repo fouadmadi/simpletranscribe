@@ -74,5 +74,18 @@
                 <TextBlock Text="Models" />
             </StackPanel>
         </Button>
+
+        <!-- History toggle -->
+        <Button x:Name="HistoryButton"
+                Grid.Column="4"
+                HorizontalAlignment="Right"
+                Margin="0,0,8,0"
+                Click="OnToggleHistory"
+                ToolTipService.ToolTip="Toggle transcript history">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon x:Name="HistoryIcon" Glyph="&#xE81C;" FontSize="14" />
+                <TextBlock Text="History" />
+            </StackPanel>
+        </Button>
     </Grid>
 </UserControl>

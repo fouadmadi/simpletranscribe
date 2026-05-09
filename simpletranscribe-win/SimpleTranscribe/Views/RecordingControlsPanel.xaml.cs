@@ -9,6 +9,7 @@ public sealed partial class RecordingControlsPanel : UserControl
 {
     public event EventHandler? ToggleRecordingClicked;
     public event EventHandler? ShowModelManagerClicked;
+    public event EventHandler? ToggleHistoryClicked;
 
     public RecordingControlsPanel()
     {
@@ -40,9 +41,19 @@ public sealed partial class RecordingControlsPanel : UserControl
             ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    public void UpdateHistoryButtonState(bool historyVisible)
+    {
+        HistoryIcon.Glyph = historyVisible ? "\uE81C" : "\uE81C"; // same icon; could swap for "filled" variant
+        // Use Opacity to indicate active state
+        HistoryButton.Opacity = historyVisible ? 1.0 : 0.6;
+    }
+
     private void OnToggleRecording(object sender, RoutedEventArgs e)
         => ToggleRecordingClicked?.Invoke(this, EventArgs.Empty);
 
     private void OnShowModelManager(object sender, RoutedEventArgs e)
         => ShowModelManagerClicked?.Invoke(this, EventArgs.Empty);
+
+    private void OnToggleHistory(object sender, RoutedEventArgs e)
+        => ToggleHistoryClicked?.Invoke(this, EventArgs.Empty);
 }
