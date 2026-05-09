@@ -15,6 +15,9 @@ public sealed partial class SettingsPanel : UserControl
     public event EventHandler<bool>? UseSystemDefaultChanged;
     public event EventHandler<(int vKey, int modifierVKey)>? HotKeyChanged;
     public event EventHandler<bool>? StreamingChanged;
+    public event EventHandler<bool>? CapitaliseSentencesChanged;
+    public event EventHandler<bool>? RemoveFillersChanged;
+    public event EventHandler<bool>? NumberFormattingChanged;
 
     private bool _suppressEvents;
     private bool _isRecordingHotKey;
@@ -229,6 +232,35 @@ public sealed partial class SettingsPanel : UserControl
     {
         if (_suppressEvents) return;
         StreamingChanged?.Invoke(this, StreamingCheckBox.IsChecked == true);
+    }
+
+    // --- Text processing toggles ---
+
+    public void UpdateTextProcessing(bool capitalise, bool fillers, bool numbers)
+    {
+        _suppressEvents = true;
+        CapitaliseCheckBox.IsChecked = capitalise;
+        FillersCheckBox.IsChecked = fillers;
+        NumbersCheckBox.IsChecked = numbers;
+        _suppressEvents = false;
+    }
+
+    private void OnCapitaliseChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        CapitaliseSentencesChanged?.Invoke(this, CapitaliseCheckBox.IsChecked == true);
+    }
+
+    private void OnFillersChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        RemoveFillersChanged?.Invoke(this, FillersCheckBox.IsChecked == true);
+    }
+
+    private void OnNumbersChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        NumberFormattingChanged?.Invoke(this, NumbersCheckBox.IsChecked == true);
     }
 
     private static string FormatHotKey(int modVKey, int vKey)

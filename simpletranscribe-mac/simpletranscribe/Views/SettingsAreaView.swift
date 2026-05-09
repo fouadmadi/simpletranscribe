@@ -76,6 +76,7 @@ struct SettingsAreaView: View {
     @Binding var useSystemDefault: Bool
     @Binding var hotKeyModifiers: NSEvent.ModifierFlags
     @Binding var streamingEnabled: Bool
+    @Binding var postProcessorConfig: PostProcessorConfig
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
 
@@ -132,6 +133,19 @@ struct SettingsAreaView: View {
                 .font(.caption)
                 .help("Show partial transcription while recording (Whisper models, lower accuracy)")
                 .disabled(downloadedModels.first(where: { $0.id == selectedModelID })?.modelType == .parakeet)
+
+            // Text processing toggles
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Text Processing")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Toggle("Capitalise sentences", isOn: $postProcessorConfig.capitaliseSentences)
+                    .toggleStyle(.checkbox).font(.caption)
+                Toggle("Remove filler words", isOn: $postProcessorConfig.removeFillersEnabled)
+                    .toggleStyle(.checkbox).font(.caption)
+                Toggle("Number formatting", isOn: $postProcessorConfig.numberFormattingEnabled)
+                    .toggleStyle(.checkbox).font(.caption)
+            }
 
             Spacer()
         }

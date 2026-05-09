@@ -42,6 +42,9 @@ public sealed partial class MainWindow : Window
             _vm.HotKeyModifierVKey = combo.modifierVKey;
         };
         Settings.StreamingChanged += (_, enabled) => _vm.StreamingEnabled = enabled;
+        Settings.CapitaliseSentencesChanged += (_, v) => { _vm.PostProcessorConfig.CapitaliseSentences = v; _vm.PostProcessorConfig.Save(SaveSetting); };
+        Settings.RemoveFillersChanged += (_, v) => { _vm.PostProcessorConfig.RemoveFillersEnabled = v; _vm.PostProcessorConfig.Save(SaveSetting); };
+        Settings.NumberFormattingChanged += (_, v) => { _vm.PostProcessorConfig.NumberFormattingEnabled = v; _vm.PostProcessorConfig.Save(SaveSetting); };
 
         TranscriptResults.TextChanged += (_, text) => _vm.TranscribedText = text;
         TranscriptResults.CopyClicked += (_, _) => _vm.CopyToClipboard();
@@ -147,10 +150,17 @@ public sealed partial class MainWindow : Window
         Settings.UpdateLanguages(_vm.AvailableLanguages, _vm.SelectedLanguage);
         Settings.UpdateHotKey(_vm.HotKeyVKey, _vm.HotKeyModifierVKey);
         Settings.UpdateStreaming(_vm.StreamingEnabled);
+        Settings.UpdateTextProcessing(
+            _vm.PostProcessorConfig.CapitaliseSentences,
+            _vm.PostProcessorConfig.RemoveFillersEnabled,
+            _vm.PostProcessorConfig.NumberFormattingEnabled);
         TranscriptResults.Text = _vm.TranscribedText;
         UpdateModelBanner();
         UpdateErrorBanner();
     }
+
+    /// <summary>Delegate passed to PostProcessorConfig.Save so it can persist via the VM's settings store.</summary>
+    private void SaveSetting(string key, string value) => _vm.SaveSettingPublic(key, value);
 
     private void UpdateRecordingControls()
     {

@@ -73,6 +73,26 @@
                           Checked="OnStreamingChanged"
                           Unchecked="OnStreamingChanged" />
             </StackPanel>
+
+            <!-- Text processing toggles -->
+            <StackPanel Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Text Processing" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <CheckBox x:Name="CapitaliseCheckBox"
+                          Content="Capitalise sentences"
+                          FontSize="12"
+                          Checked="OnCapitaliseChanged"
+                          Unchecked="OnCapitaliseChanged" />
+                <CheckBox x:Name="FillersCheckBox"
+                          Content="Remove filler words"
+                          FontSize="12"
+                          Checked="OnFillersChanged"
+                          Unchecked="OnFillersChanged" />
+                <CheckBox x:Name="NumbersCheckBox"
+                          Content="Number formatting"
+                          FontSize="12"
+                          Checked="OnNumbersChanged"
+                          Unchecked="OnNumbersChanged" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

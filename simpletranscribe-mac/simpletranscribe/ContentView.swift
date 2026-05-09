@@ -32,6 +32,7 @@ struct ContentView: View {
                 useSystemDefault: $appModel.useSystemDefault,
                 hotKeyModifiers: $appModel.hotKeyModifiers,
                 streamingEnabled: $appModel.streamingEnabled,
+                postProcessorConfig: $appModel.postProcessorConfig,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable }
             )

@@ -22,6 +22,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private DateTime? _recordingStartTime;
 
     public TranscriptHistoryService History { get; } = new();
+    public PostProcessorConfig PostProcessorConfig { get; private set; } = new();
 
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isProcessing;
@@ -79,6 +80,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hotKeyVKey = int.TryParse(GetSetting("hotKeyVKey"), out var vk) ? vk : Win32Interop.VK_SPACE;
         _hotKeyModifierVKey = int.TryParse(GetSetting("hotKeyModifierVKey"), out var mod) ? mod : Win32Interop.VK_CONTROL;
         _streamingEnabled = GetSetting("streamingEnabled", "False") == "True";
+        PostProcessorConfig = PostProcessorConfig.Load(k => GetSetting(k));
 
         // Wire up audio buffer relay — feeds both accumulator and streaming transcriber
         _audioManager.OnBufferReceived += buffer =>
@@ -295,19 +297,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var text = await _transcriptionManager.ProcessAudioAsync(SelectedLanguage);
             var trimmed = text.Trim();
+            var config = PostProcessorConfig;
+            var processed = string.IsNullOrEmpty(trimmed) ? trimmed
+                : await Task.Run(() => TextPostProcessor.Process(trimmed, config));
 
-            if (!string.IsNullOrEmpty(trimmed))
+            if (!string.IsNullOrEmpty(processed))
             {
                 TranscribedText = string.IsNullOrEmpty(TranscribedText)
-                    ? trimmed
-                    : TranscribedText + " " + trimmed;
+                    ? processed
+                    : TranscribedText + " " + processed;
 
                 var duration = _recordingStartTime.HasValue
                     ? (DateTime.Now - _recordingStartTime.Value).TotalSeconds
                     : 0;
                 History.Append(new Models.TranscriptEntry
                 {
-                    Text = trimmed,
+                    Text = processed,
                     DurationSeconds = duration,
                     ModelId = SelectedModelId,
                     Language = SelectedLanguage
@@ -318,8 +323,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayState = OverlayState.Done;
             SoundManager.PlayTranscriptionComplete();
 
-            if (autoPaste && !string.IsNullOrEmpty(trimmed))
-                PasteService.CopyAndPaste(trimmed);
+            if (autoPaste && !string.IsNullOrEmpty(processed))
+                PasteService.CopyAndPaste(processed);
         }
         catch (Exception ex)
         {
@@ -507,6 +512,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             catch { /* Best effort settings persistence */ }
         }
     }
+
+    /// <summary>Public entry point for external callers (e.g., MainWindow) to persist arbitrary settings keys.</summary>
+    public void SaveSettingPublic(string key, string value) => SaveSetting(key, value);
 
     public void Cleanup()
     {

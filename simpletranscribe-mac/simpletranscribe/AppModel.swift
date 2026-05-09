@@ -25,6 +25,9 @@ class AppModel {
     var streamingEnabled: Bool = UserDefaults.standard.bool(forKey: "streamingEnabled") {
         didSet { UserDefaults.standard.set(streamingEnabled, forKey: "streamingEnabled") }
     }
+    var postProcessorConfig: PostProcessorConfig = PostProcessorConfig.fromUserDefaults() {
+        didSet { postProcessorConfig.save() }
+    }
     var selectedLanguage: String = UserDefaults.standard.string(forKey: "selectedLanguage") ?? "en" {
         didSet { UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage") }
     }
@@ -332,17 +335,22 @@ class AppModel {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 Self.logger.debug("transcription result length: \(trimmed.count, privacy: .public) (autoPaste=\(autoPaste, privacy: .public))")
 
-                if !trimmed.isEmpty {
+                let config = postProcessorConfig
+                let processed = trimmed.isEmpty ? trimmed : await Task.detached(priority: .userInitiated) {
+                    TextPostProcessor.process(trimmed, config: config)
+                }.value
+
+                if !processed.isEmpty {
                     if transcribedText.isEmpty {
-                        transcribedText = trimmed
+                        transcribedText = processed
                     } else {
-                        transcribedText += " " + trimmed
+                        transcribedText += " " + processed
                     }
 
                     // Save to history
                     let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
                     let entry = TranscriptEntry(
-                        text: trimmed,
+                        text: processed,
                         duration: duration,
                         modelID: selectedModelID,
                         language: selectedLanguage
@@ -355,12 +363,12 @@ class AppModel {
                 autoClearOverlay(after: 1.5)
                 SoundManager.playTranscriptionComplete()
 
-                if autoPaste && !trimmed.isEmpty {
+                if autoPaste && !processed.isEmpty {
                     // Re-activate the app the user was in before recording
                     if let target = self.previousApp, !target.isTerminated {
                         target.activate()
                     }
-                    PasteService.copyAndPaste(trimmed)
+                    PasteService.copyAndPaste(processed)
                 }
             } catch {
                 Self.logger.error("transcription error: \(error, privacy: .public)")
