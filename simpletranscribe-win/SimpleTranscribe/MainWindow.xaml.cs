@@ -1,7 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using SimpleTranscribe.Interop;
+using Win32Interop = SimpleTranscribe.Interop.Win32Interop;
 using SimpleTranscribe.ViewModels;
 
 namespace SimpleTranscribe;
