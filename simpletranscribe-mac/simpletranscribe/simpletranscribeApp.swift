@@ -133,7 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch appModel.overlayState {
         case .idle:
             overlayWindow.hide()
-        case .recording, .transcribing:
+        case .recording, .recordingWarning, .transcribing:
             overlayWindow.show(state: appModel.overlayState)
         case .done:
             overlayWindow.showDone()

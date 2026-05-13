@@ -32,11 +32,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: Restore dependencies
-        run: dotnet restore ./simpletranscribe-win/SimpleTranscribe.sln
+        run: dotnet restore ./simpletranscribe-win/SimpleTranscribe.sln /p:Platform=x64
       - name: Build
-        run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore /p:BUILD_VERSION=${{ env.VERSION }}
+        run: dotnet build ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-restore /p:Platform=x64 /p:BUILD_VERSION=${{ env.VERSION }}
       - name: Publish
-        run: dotnet publish ./simpletranscribe-win/SimpleTranscribe/SimpleTranscribe.csproj -c Release -r win-x64 --self-contained -o ./simpletranscribe-win/publish /p:BUILD_VERSION=${{ env.VERSION }}
+        run: dotnet publish ./simpletranscribe-win/SimpleTranscribe/SimpleTranscribe.csproj -c Release -r win-x64 --self-contained -o ./simpletranscribe-win/publish /p:Platform=x64 /p:BUILD_VERSION=${{ env.VERSION }}
 
       # Inject version into Info.plist for macOS
       # This step will be added to the macOS build job
