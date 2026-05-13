@@ -61,7 +61,8 @@ public sealed partial class TranscriptResultsPanel : UserControl
         _ = HideCopiedTipAsync();
     }
 
-    private void OnExportTxt(SplitButton sender, SplitButtonClickEventArgs e) => ExportRequested?.Invoke(this, "txt");
+    private void OnExportSplitButton(SplitButton sender, SplitButtonClickEventArgs e) => ExportRequested?.Invoke(this, "txt");
+    private void OnExportTxt(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(this, "txt");
     private void OnExportMd(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(this, "md");
     private void OnExportSrt(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(this, "srt");
 

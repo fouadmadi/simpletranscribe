@@ -45,7 +45,7 @@
 
             <!-- Export split button -->
             <SplitButton x:Name="ExportButton"
-                         Click="OnExportTxt"
+                         Click="OnExportSplitButton"
                          ToolTipService.ToolTip="Export as plain text"
                          Padding="8">
                 <FontIcon Glyph="&#xE74E;" FontSize="16" />
