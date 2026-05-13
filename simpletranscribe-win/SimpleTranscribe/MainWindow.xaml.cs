@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using SimpleTranscribe.Interop;
 using SimpleTranscribe.ViewModels;
+using Win32Interop = SimpleTranscribe.Interop.Win32Interop;
 
 namespace SimpleTranscribe;
 
