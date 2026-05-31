@@ -51,9 +51,8 @@ jobs:
         with:
           name: windows-installer
           path: ./simpletranscribe-win/SimpleTranscribe.Installer/Output/SimpleTranscribe-Setup.exe
-      # - name: Run Tests
-      #   run: echo "Unit tests disabled for Windows in CI pipeline"
-      #   # dotnet test ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-build --verbosity normal --filter "Category!=Integration&Category!=Performance"
+      - name: Run Tests
+        run: dotnet test ./simpletranscribe-win/SimpleTranscribe.sln --configuration Release --no-build --verbosity normal /p:Platform=x64 --filter "Category!=Integration&Category!=Performance"
 
   build-macos:
     name: Build macOS (Swift)
