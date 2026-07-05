@@ -37,6 +37,7 @@ struct ContentView: View {
                 postProcessorConfig: $appModel.postProcessorConfig,
                 autoClearAfterPaste: $appModel.autoClearAfterPaste,
                 transcriptFontSize: $appModel.transcriptFontSize,
+                diagnosticLogging: $appModel.diagnosticLogging,
                 availableInputDevices: appModel.availableInputDevices,
                 downloadedModels: appModel.modelService.availableModels.filter { $0.isAvailable },
                 activeComputeBackend: appModel.activeComputeBackend
@@ -110,7 +111,11 @@ struct ContentView: View {
             ModelDownloadView(appModel: appModel)
                 .frame(minWidth: 700, minHeight: 350)
                 .onDisappear {
-                    appModel.selectDefaultModel()
+                    // Only reset selection if the chosen model is no longer available
+                    // (e.g. it was deleted). Preserve explicit user choices otherwise.
+                    if appModel.modelService.getModel(appModel.selectedModelID)?.isAvailable != true {
+                        appModel.selectDefaultModel()
+                    }
                 }
         }
     }

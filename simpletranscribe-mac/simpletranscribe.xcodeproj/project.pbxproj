@@ -7,7 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		42E4D369BA9D600D2DCFA269 /* onnxruntime.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 252E55CB5F83E85D2236D7C6 /* onnxruntime.xcframework */; };
+		ADDE1887CBB376B04291CF7B /* sherpa-onnx.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 44201015717C26E129DEF519 /* sherpa-onnx.xcframework */; };
 		CE10C922F4D6D637453CFC24 /* SwiftWhisper in Frameworks */ = {isa = PBXBuildFile; productRef = BD8C5B6D5C0CB52BB578BECB /* SwiftWhisper */; };
+		EDB16BFD7804FCE52B4A2112 /* onnxruntime.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 252E55CB5F83E85D2236D7C6 /* onnxruntime.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -20,7 +23,23 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		B8C1B90042161323196E076F /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				EDB16BFD7804FCE52B4A2112 /* onnxruntime.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		252E55CB5F83E85D2236D7C6 /* onnxruntime.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = onnxruntime.xcframework; path = onnxruntime.xcframework; sourceTree = SOURCE_ROOT; };
+		44201015717C26E129DEF519 /* sherpa-onnx.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = "sherpa-onnx.xcframework"; path = "sherpa-onnx.xcframework"; sourceTree = SOURCE_ROOT; };
 		62177063947FB4B5B91E7236 /* simpletranscribeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = simpletranscribeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEF939A92F4B943000F40AAF /* simpletranscribe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = simpletranscribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -28,11 +47,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5C6A517D62B6C2718D561A42 /* simpletranscribeTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = simpletranscribeTests;
 			sourceTree = "<group>";
 		};
 		CEF939AB2F4B943000F40AAF /* simpletranscribe */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = simpletranscribe;
 			sourceTree = "<group>";
 		};
@@ -44,6 +67,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE10C922F4D6D637453CFC24 /* SwiftWhisper in Frameworks */,
+				ADDE1887CBB376B04291CF7B /* sherpa-onnx.xcframework in Frameworks */,
+				42E4D369BA9D600D2DCFA269 /* onnxruntime.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,12 +82,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		52A0BD25D1F64D8087318128 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				44201015717C26E129DEF519 /* sherpa-onnx.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		CEF939A02F4B943000F40AAF = {
 			isa = PBXGroup;
 			children = (
 				CEF939AB2F4B943000F40AAF /* simpletranscribe */,
 				5C6A517D62B6C2718D561A42 /* simpletranscribeTests */,
 				CEF939AA2F4B943000F40AAF /* Products */,
+				44201015717C26E129DEF519 /* sherpa-onnx.xcframework */,
+				52A0BD25D1F64D8087318128 /* Frameworks */,
+				252E55CB5F83E85D2236D7C6 /* onnxruntime.xcframework */,
 			);
 			sourceTree = "<group>";
 		};
@@ -106,6 +142,7 @@
 				CEF939A52F4B943000F40AAF /* Sources */,
 				CEF939A62F4B943000F40AAF /* Frameworks */,
 				CEF939A72F4B943000F40AAF /* Resources */,
+				B8C1B90042161323196E076F /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -221,6 +258,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SHERPA_ONNX";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -243,6 +281,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SHERPA_ONNX";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -401,9 +440,11 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SHERPA_ONNX";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "simpletranscribe/SherpaOnnx-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -441,9 +482,11 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SHERPA_ONNX";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "simpletranscribe/SherpaOnnx-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};

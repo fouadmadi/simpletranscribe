@@ -23,6 +23,7 @@ struct ModelInfo: Identifiable, Codable {
     let downloadURL: URL              // Remote download source (primary/single-file models)
     let language: String              // e.g., "en" or "multilingual"
     let sha256: String?               // Expected SHA256 hash (single-file models only)
+    var coreMlEncoderZipURL: URL?     // Zip containing the Core ML encoder for Whisper models
     var modelType: ModelType = .whisper
     var isDirectory: Bool = false     // true for multi-file models like Parakeet ONNX
     var files: [ModelFile] = []       // Individual files for directory-based models

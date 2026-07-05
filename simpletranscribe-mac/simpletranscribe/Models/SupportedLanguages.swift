@@ -56,7 +56,6 @@ enum SupportedLanguages {
         SupportedLanguage(code: "cy",   displayName: "Welsh"),
         SupportedLanguage(code: "eu",   displayName: "Basque"),
         SupportedLanguage(code: "fa",   displayName: "Persian"),
-        SupportedLanguage(code: "gl",   displayName: "Galician"),
         SupportedLanguage(code: "gu",   displayName: "Gujarati"),
         SupportedLanguage(code: "hy",   displayName: "Armenian"),
         SupportedLanguage(code: "is",   displayName: "Icelandic"),

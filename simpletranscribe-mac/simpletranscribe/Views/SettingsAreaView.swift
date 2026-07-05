@@ -79,6 +79,7 @@ struct SettingsAreaView: View {
     @Binding var postProcessorConfig: PostProcessorConfig
     @Binding var autoClearAfterPaste: Bool
     @Binding var transcriptFontSize: Double
+    @Binding var diagnosticLogging: Bool
     let availableInputDevices: [AVCaptureDevice]
     let downloadedModels: [ModelInfo]
     let activeComputeBackend: String
@@ -173,6 +174,23 @@ struct SettingsAreaView: View {
                     .toggleStyle(.checkbox).font(.caption)
                 Toggle("Number formatting", isOn: $postProcessorConfig.numberFormattingEnabled)
                     .toggleStyle(.checkbox).font(.caption)
+            }
+
+            // Diagnostic logging (developer aid)
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Diagnostic log", isOn: $diagnosticLogging)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Write a timestamped debug log — useful when reporting issues")
+                if diagnosticLogging {
+                    Button("Reveal log") {
+                        NSWorkspace.shared.activateFileViewerSelecting(
+                            [DiagnosticLogger.shared.logFileURL]
+                        )
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.link)
+                }
             }
 
             Spacer()

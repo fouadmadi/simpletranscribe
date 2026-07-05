@@ -47,6 +47,9 @@ class AppModel {
             validateLanguageForModel()
         }
     }
+    var diagnosticLogging: Bool = UserDefaults.standard.bool(forKey: "diagnosticLogging") {
+        didSet { UserDefaults.standard.set(diagnosticLogging, forKey: "diagnosticLogging") }
+    }
     var selectedInputDevice: AVCaptureDevice? {
         didSet { UserDefaults.standard.set(selectedInputDevice?.uniqueID, forKey: "selectedInputDeviceID") }
     }
@@ -108,6 +111,7 @@ class AppModel {
     @ObservationIgnored private var streamingTranscriber: StreamingTranscriber?
     @ObservationIgnored private var recordingTimer: Timer?
     @ObservationIgnored private var pasteFailedWorkItem: DispatchWorkItem?
+    @ObservationIgnored private var modelLoadTask: Task<Void, Never>?
 
     var currentModel: ModelInfo? {
         modelService.getModel(selectedModelID)
@@ -253,25 +257,52 @@ class AppModel {
             return
         }
 
+        guard let transcriptionManager else {
+            errorMessage = "Transcription service unavailable."
+            modelLoaded = false
+            return
+        }
+
         isLoadingModel = true
         modelLoaded = false
         errorMessage = nil
 
+        // Snapshot the intended model so we don't overwrite state if a newer load overtook us
+        let intendedModelID = selectedModelID
+        let modelType = currentModel?.modelType ?? .whisper
+        DiagnosticLogger.shared.log(
+            "Loading model: \(intendedModelID) (type=\(modelType.rawValue))", category: "Model"
+        )
+
         do {
-            let modelType = currentModel?.modelType ?? .whisper
-            try await transcriptionManager?.loadModel(modelPath: modelPath, modelType: modelType)
+            try await transcriptionManager.loadModel(modelPath: modelPath, modelType: modelType)
+
+            // Only commit if this load is still the current selection
+            guard !Task.isCancelled, selectedModelID == intendedModelID else {
+                DiagnosticLogger.shared.log(
+                    "Load discarded (selection changed during load): \(intendedModelID)", category: "Model"
+                )
+                return
+            }
             modelLoaded = true
             isLoadingModel = false
             errorMessage = nil
+            DiagnosticLogger.shared.log("Model ready: \(intendedModelID)", category: "Model")
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = "Failed to load model: \(error.localizedDescription)"
             modelLoaded = false
             isLoadingModel = false
+            DiagnosticLogger.shared.log(
+                "Model load failed (\(intendedModelID)): \(error.localizedDescription)", category: "Model"
+            )
         }
     }
 
     func loadModel() {
-        Task { @MainActor in
+        // Cancel any in-flight load before starting a new one
+        modelLoadTask?.cancel()
+        modelLoadTask = Task { @MainActor in
             await loadModelAsync()
         }
     }
@@ -335,6 +366,7 @@ class AppModel {
                 self?.errorMessage = "Microphone access denied."
                 self?.overlayState = .error("Mic access denied")
                 self?.autoClearOverlay(after: 3.0)
+                DiagnosticLogger.shared.log("Recording blocked: microphone access denied", category: "Recording")
                 return
             }
 
@@ -349,6 +381,10 @@ class AppModel {
                 try audioManager.startRecording(device: self.selectedInputDevice)
                 self.startRecordingTimer()
                 SoundManager.playRecordingStarted()
+                DiagnosticLogger.shared.log(
+                    "Recording started — model: \(self.selectedModelID), lang: \(self.selectedLanguage)",
+                    category: "Recording"
+                )
 
                 // Start streaming preview for Whisper models
                 if self.streamingEnabled,
@@ -365,6 +401,9 @@ class AppModel {
                 self.overlayState = .error("Recording failed")
                 self.autoClearOverlay(after: 3.0)
                 SoundManager.playError()
+                DiagnosticLogger.shared.log(
+                    "Recording failed to start: \(error.localizedDescription)", category: "Recording"
+                )
             }
         }
     }
@@ -379,6 +418,7 @@ class AppModel {
         errorMessage = nil
         showTranscriptionStarted = false
         overlayState = .transcribing
+        DiagnosticLogger.shared.log("Recording stopped, transcribing…", category: "Recording")
 
         // Stop streaming and clear preview before batch result arrives
         if let streamer = streamingTranscriber {
@@ -392,6 +432,10 @@ class AppModel {
                 let text = try await transcriptionManager.processAudio { _ in }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 Self.logger.debug("transcription result length: \(trimmed.count, privacy: .public) (autoPaste=\(autoPaste, privacy: .public))")
+                DiagnosticLogger.shared.log(
+                    "Transcription result: \(trimmed.count) chars (autoPaste=\(autoPaste))",
+                    category: "Transcription"
+                )
 
                 let config = postProcessorConfig
                 let processed = trimmed.isEmpty ? trimmed : await Task.detached(priority: .userInitiated) {
@@ -449,6 +493,9 @@ class AppModel {
                 }
             } catch {
                 Self.logger.error("transcription error: \(error, privacy: .public)")
+                DiagnosticLogger.shared.log(
+                    "Transcription error: \(error.localizedDescription)", category: "Transcription"
+                )
                 errorMessage = "Transcription failed: \(error.localizedDescription)"
                 isProcessing = false
                 overlayState = .error("Transcription failed")

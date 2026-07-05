@@ -54,6 +54,9 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
         
         // Load available models and check which ones are downloaded
         loadAvailableModels()
+        
+        // Download missing Core ML encoders for already-downloaded whisper models
+        Task { await ensureCoreMlEncoders() }
     }
     
     /// Load and initialize available models
@@ -165,6 +168,13 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
                 taskToModelID[task.taskIdentifier] = modelID
                 taskMapLock.unlock()
                 task.resume()
+            }
+            
+            // After .bin download, fetch Core ML encoder for hardware-accelerated inference
+            if let index = modelIndex[modelID],
+               availableModels[index].status == .downloaded,
+               let zipURL = model.coreMlEncoderZipURL {
+                await downloadCoreMlEncoder(modelID: modelID, zipURL: zipURL)
             }
         }
     }
@@ -325,6 +335,96 @@ final class ModelService: NSObject, URLSessionDownloadDelegate {
     
     // MARK: - Private Helpers
     
+    /// Downloads and extracts the Core ML encoder zip for a whisper model.
+    /// Only runs on Apple Silicon — Core ML encoders use MPSGraph ops that fail on Intel Macs.
+    /// Non-fatal: if this fails, whisper.cpp falls back to CPU inference.
+    private func downloadCoreMlEncoder(modelID: String, zipURL: URL) async {
+        #if arch(arm64)
+        let encoderName = modelID + "-encoder.mlmodelc"
+        let encoderDir = modelsDirectory.appending(path: encoderName, directoryHint: .isDirectory)
+        
+        guard !FileManager.default.fileExists(atPath: encoderDir.path) else {
+            logger.debug("Core ML encoder already present for \(modelID, privacy: .public)")
+            return
+        }
+        
+        logger.info("Downloading Core ML encoder for \(modelID, privacy: .public)")
+        DiagnosticLogger.shared.log("Downloading CoreML encoder: \(modelID)", category: "CoreML")
+        let tempZip = modelsDirectory.appending(path: encoderName + ".zip")
+        do {
+            let (downloadedURL, _) = try await URLSession.shared.download(from: zipURL)
+            try? FileManager.default.removeItem(at: tempZip)
+            try FileManager.default.moveItem(at: downloadedURL, to: tempZip)
+            
+            let unzip = Process()
+            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            unzip.arguments = ["-o", tempZip.path, "-d", modelsDirectory.path]
+            unzip.standardOutput = FileHandle.nullDevice
+            unzip.standardError = FileHandle.nullDevice
+            try unzip.run()
+            unzip.waitUntilExit()
+            
+            try? FileManager.default.removeItem(at: tempZip)
+            
+            if FileManager.default.fileExists(atPath: encoderDir.path) {
+                logger.info("Core ML encoder ready for \(modelID, privacy: .public)")
+                DiagnosticLogger.shared.log("CoreML encoder ready: \(modelID)", category: "CoreML")
+            } else {
+                logger.warning("Core ML encoder zip extracted but directory not found for \(modelID, privacy: .public)")
+                DiagnosticLogger.shared.log("CoreML encoder extraction incomplete: \(modelID)", category: "CoreML")
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: tempZip)
+            logger.warning("Core ML encoder download failed for \(modelID, privacy: .public): \(error, privacy: .public)")
+            DiagnosticLogger.shared.log("CoreML encoder download failed (\(modelID)): \(error.localizedDescription)", category: "CoreML")
+        }
+        #endif
+    }
+    
+    /// Ensures Core ML encoders are in the correct state for all downloaded whisper models.
+    /// On Apple Silicon: downloads missing encoders for hardware-accelerated inference.
+    /// On Intel: removes any encoders that were previously downloaded, because Core ML
+    /// uses MPSGraph ops that are incompatible with Intel Macs and cause inference failures.
+    func ensureCoreMlEncoders() async {
+        #if arch(arm64)
+        DiagnosticLogger.shared.log("Checking CoreML encoders (Apple Silicon)", category: "CoreML")
+        let whisperModels = availableModels.filter {
+            $0.modelType == .whisper &&
+            $0.status == .downloaded &&
+            $0.coreMlEncoderZipURL != nil
+        }
+        for model in whisperModels {
+            guard let zipURL = model.coreMlEncoderZipURL else { continue }
+            await downloadCoreMlEncoder(modelID: model.id, zipURL: zipURL)
+        }
+        #else
+        // Remove any Core ML encoders that may have been downloaded on this Intel Mac.
+        // Their presence causes whisper.cpp to attempt Core ML inference, which fails
+        // with MPSGraph errors and -10877, making transcription non-functional.
+        DiagnosticLogger.shared.log("Intel Mac detected — removing incompatible CoreML encoders", category: "CoreML")
+        removeCoreMlEncoders()
+        #endif
+    }
+
+    private func removeCoreMlEncoders() {
+        let whisperModels = availableModels.filter { $0.modelType == .whisper }
+        for model in whisperModels {
+            let encoderDir = modelsDirectory.appending(
+                path: model.id + "-encoder.mlmodelc",
+                directoryHint: .isDirectory
+            )
+            guard FileManager.default.fileExists(atPath: encoderDir.path) else { continue }
+            do {
+                try FileManager.default.removeItem(at: encoderDir)
+                logger.info("Removed incompatible Core ML encoder on Intel Mac: \(model.id, privacy: .public)")
+                DiagnosticLogger.shared.log("Removed Intel-incompatible CoreML encoder: \(model.id)", category: "CoreML")
+            } catch {
+                logger.warning("Failed to remove Core ML encoder \(model.id, privacy: .public): \(error, privacy: .public)")
+                DiagnosticLogger.shared.log("Failed to remove CoreML encoder (\(model.id)): \(error.localizedDescription)", category: "CoreML")
+            }
+        }
+    }
+
     private func updateModelStatus(_ modelID: String, to status: ModelInfo.ModelStatus) {
         if let index = modelIndex[modelID] {
             availableModels[index].status = status

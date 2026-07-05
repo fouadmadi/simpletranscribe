@@ -27,8 +27,10 @@ Package.resolved
 # Project-specific
 *.rb
 *.bin
-*.md
 !README.md
+
+# xcframeworks (large binary dependencies — install locally via add_sherpa_onnx.rb)
+*.xcframework/
 
 # Misc
 .env

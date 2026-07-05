@@ -188,7 +188,8 @@ class TranscriptionManager {
         let tokensPath = modelDirectory.appending(path: "tokens.txt").path
         let numThreads = max(1, ProcessInfo.processInfo.activeProcessorCount)
         
-        let recognizer = await Task.detached(priority: .userInitiated) {
+        typealias RecognizerResult = (recognizer: SherpaOnnxOfflineRecognizer, provider: String)
+        let recognizer: RecognizerResult? = await Task.detached(priority: .userInitiated) { () -> RecognizerResult? in
             // On Apple Silicon, prefer CoreML for faster ONNX inference; fall back to CPU
             #if arch(arm64)
             let providers = ["coreml", "cpu"]
@@ -217,11 +218,10 @@ class TranscriptionManager {
                     modelConfig: modelConfig
                 )
 
-                if let r = SherpaOnnxOfflineRecognizer(config: &config) {
-                    return (recognizer: r, provider: provider)
-                }
+                let r = SherpaOnnxOfflineRecognizer(config: &config)
+                    return RecognizerResult(recognizer: r, provider: provider)
             }
-            return nil as (recognizer: SherpaOnnxOfflineRecognizer, provider: String)?
+            return nil
         }.value
 
         await MainActor.run {
