@@ -17,4 +17,18 @@ struct TranscriptEntry: Identifiable, Codable {
         self.modelID = modelID
         self.language = language
     }
+
+    var timestampRelative: String {
+        let delta = Date().timeIntervalSince(timestamp)
+        if delta < 60 { return "just now" }
+        if delta < 3600 { return "\(Int(delta / 60))min ago" }
+        if delta < 86400 { return "\(Int(delta / 3600))h ago" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: timestamp)
+    }
+
+    var durationLabel: String {
+        "\(Int(duration))s"
+    }
 }

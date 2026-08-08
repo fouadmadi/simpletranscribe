@@ -35,6 +35,17 @@ enum TranscriptExporter {
         "# \(title)\n\n\(text)\n"
     }
 
+    static func formatHistoryMarkdown(entries: [TranscriptEntry]) -> String {
+        guard !entries.isEmpty else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let body = entries.map { entry in
+            "## \(formatter.string(from: entry.timestamp))\n\n\(entry.text)"
+        }.joined(separator: "\n\n")
+        return formatMarkdown(body, title: "Transcript History")
+    }
+
     static func formatSRT(entries: [TranscriptEntry]) -> String {
         guard !entries.isEmpty else { return "" }
         var offset: TimeInterval = 0

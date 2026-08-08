@@ -3,6 +3,14 @@ import SwiftUI
 struct TranscriptHistoryView: View {
     @Environment(AppModel.self) private var appModel
     @State private var showClearConfirm = false
+    @State private var searchText = ""
+
+    private var filteredEntries: [TranscriptEntry] {
+        if searchText.isEmpty { return appModel.history.entries }
+        return appModel.history.entries.filter {
+            $0.text.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,16 +42,39 @@ struct TranscriptHistoryView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
 
+            // Search field
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("Search transcripts...", text: $searchText)
+                    .textFieldStyle(.plain)
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.04))
+            .cornerRadius(6)
+            .padding(.horizontal)
+            .padding(.bottom, 6)
+
             Divider()
 
-            if appModel.history.entries.isEmpty {
+            if filteredEntries.isEmpty {
                 Spacer()
-                Text("No transcriptions yet")
+                Text(searchText.isEmpty ? "No transcriptions yet" : "No results found")
                     .font(.callout)
                     .foregroundColor(.secondary)
                 Spacer()
             } else {
-                List(appModel.history.entries) { entry in
+                List(filteredEntries) { entry in
                     HistoryEntryRow(entry: entry) {
                         appModel.history.delete(entry.id)
                     }

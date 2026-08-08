@@ -75,6 +75,21 @@ jobs:
           fi
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" simpletranscribe-mac/simpletranscribe/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" simpletranscribe-mac/simpletranscribe/Info.plist
+      - name: Download sherpa-onnx xcframeworks
+        shell: bash
+        run: |
+          cd simpletranscribe-mac
+          echo "Downloading sherpa-onnx xcframework for macOS..."
+          curl -L -o sherpa-onnx-macos.zip \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/xcframework/sherpa-onnx-v1.13.4-macos-shared.xcframework.zip"
+          unzip -o sherpa-onnx-macos.zip
+          # The zip contains sherpa_onnx.xcframework - rename to match project reference
+          if [ -d "sherpa_onnx.xcframework" ] && [ ! -d "sherpa-onnx.xcframework" ]; then
+            mv sherpa_onnx.xcframework sherpa-onnx.xcframework
+          fi
+          # Verify frameworks exist
+          ls -la *.xcframework/
+          rm -f sherpa-onnx-macos.zip
       - name: Build
         run: |
           cd simpletranscribe-mac

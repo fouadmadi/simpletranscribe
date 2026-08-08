@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:SimpleTranscribe.Models">
 
-    <Grid RowDefinitions="Auto,1,*">
+    <Grid RowDefinitions="Auto,Auto,1,*">
 
         <!-- Header -->
         <Grid Grid.Row="0" Padding="12,8">
@@ -23,11 +23,18 @@
         </Grid>
 
         <!-- Separator -->
-        <Border Grid.Row="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Height="1" />
+        <Border Grid.Row="2" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Height="1" />
+
+        <!-- Search -->
+        <TextBox x:Name="SearchBox"
+                 Grid.Row="1"
+                 PlaceholderText="Search transcripts..."
+                 Margin="12,4,12,4"
+                 TextChanged="SearchBox_TextChanged" />
 
         <!-- List -->
         <ListView x:Name="HistoryList"
-                  Grid.Row="2"
+                  Grid.Row="3"
                   ItemsSource="{x:Bind History.Entries, Mode=OneWay}"
                   SelectionMode="None"
                   Padding="0"
