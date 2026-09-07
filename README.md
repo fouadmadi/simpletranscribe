@@ -7,7 +7,7 @@ A lightweight speech-to-text transcription app powered by [whisper.cpp](https://
 | Platform | Directory | Status |
 |----------|-----------|--------|
 | **macOS** | [`simpletranscribe-mac/`](simpletranscribe-mac/) | ✅ Available |
-| **Windows** | [`simpletranscribe-win/`](simpletranscribe-win/) | 🚧 In development |
+| **Windows** | [`simpletranscribe-win/`](simpletranscribe-win/) | ✅ Preview build available |
 
 ## Features
 
@@ -16,7 +16,7 @@ A lightweight speech-to-text transcription app powered by [whisper.cpp](https://
 - **Auto-paste** — Transcribed text is copied to clipboard and pasted at your cursor automatically
 - **Multiple models** — Download and switch between Whisper models (Tiny → Large) from within the app
 - **Sound feedback** — Audio cues for recording start, transcription complete, and errors
-- **Multi-language** — Supports English, Spanish, French, German, Chinese, and auto-detect
+- **Model-aware language support** — English-only models stay locked to English, while multilingual models expose the full supported language set
 
 ## Models
 
@@ -27,6 +27,8 @@ A lightweight speech-to-text transcription app powered by [whisper.cpp](https://
 | Small (English) | ~461 MB | Moderate | Good |
 | Medium (English) | ~1.5 GB | Slow | High |
 | Large (Multilingual) | ~2.9 GB | Very slow | Highest |
+
+English-only Whisper models expose English only. Multilingual language selection is available on models such as Whisper Large and Parakeet V3.
 
 ## Getting Started
 

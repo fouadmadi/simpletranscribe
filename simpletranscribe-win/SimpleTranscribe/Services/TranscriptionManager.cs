@@ -317,8 +317,8 @@ public class TranscriptionManager : IDisposable
         pars.PrintSpecial = false;
         pars.PrintRealtime = false;
 
-        // Language configuration via safe field offsets
-        pars.ConfigureLanguage(LanguageMap.GetValueOrDefault(language, "en"));
+        var effectiveLanguage = WhisperNative.IsMultilingual(ctx) != 0 ? language : "en";
+        pars.ConfigureLanguage(LanguageMap.GetValueOrDefault(effectiveLanguage, "en"));
 
         var result = WhisperNative.Full(ctx, pars.Pointer, audio, audio.Length);
         if (result != 0)

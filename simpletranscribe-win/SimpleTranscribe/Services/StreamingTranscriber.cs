@@ -78,7 +78,8 @@ public sealed class StreamingTranscriber : IDisposable
             pars.PrintProgress = false;
             pars.PrintTimestamps = false;
             pars.PrintSpecial = false;
-            pars.ConfigureLanguage(_language == "auto" ? "auto" : _language);
+            var effectiveLanguage = WhisperNative.IsMultilingual(_ctx) != 0 ? _language : "en";
+            pars.ConfigureLanguage(effectiveLanguage);
 
             if (WhisperNative.Full(_ctx, pars.Pointer, chunk, chunk.Length) != 0)
                 return null;

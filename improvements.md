@@ -54,7 +54,7 @@ Both apps share strong architectural parity: push-to-talk hotkey, Whisper + Para
 Every recording either replaces or appends to a single text area. Once the user clears it or the app restarts, all transcriptions are gone. There is no per-session history, timestamp, or ability to recall what was transcribed 5 minutes ago.
 
 ### 3 — Expanded Language Support
-The language picker is hardcoded to 6 options (auto, en, es, fr, de, zh). Whisper supports ~100 languages. The Parakeet V3 model covers 27 languages but the UI does not surface them. Non-English-primary users are poorly served.
+This gap is now largely closed: the apps expose model-aware language selection, with English-only Whisper models restricted to English, Whisper Large exposing the full Whisper multilingual list, and Parakeet V3 surfacing its supported 27-language subset.
 
 ### 4 — Live Transcription Preview
 All audio is accumulated in memory and processed in a single batch after the user releases the hotkey. There is no partial/streaming output during recording. For long dictations, users must wait until the end to see any text.

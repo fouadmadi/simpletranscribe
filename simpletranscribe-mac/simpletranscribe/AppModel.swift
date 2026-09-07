@@ -136,11 +136,16 @@ class AppModel {
     /// Ensures the currently selected language is valid for the newly selected model.
     /// Falls back to "en" if not, and posts a device-switch style message.
     private func validateLanguageForModel() {
-        guard let allowed = SupportedLanguages.supportedCodes(for: selectedModelID) else { return }
-        if selectedLanguage != "auto" && !allowed.contains(selectedLanguage) {
-            selectedLanguage = "en"
+        let available = SupportedLanguages.available(for: selectedModelID)
+        guard !available.isEmpty else { return }
+
+        let availableCodes = Set(available.map(\.code))
+        if !availableCodes.contains(selectedLanguage) {
+            let fallback = available.first(where: { $0.code == "en" })?.code ?? available[0].code
+            let fallbackName = available.first(where: { $0.code == fallback })?.displayName ?? fallback
+            selectedLanguage = fallback
             let modelName = modelService.getModel(selectedModelID)?.name ?? selectedModelID
-            deviceSwitchMessage = "\(modelName) doesn't support the selected language — switched to English."
+            deviceSwitchMessage = "\(modelName) doesn't support the selected language — switched to \(fallbackName)."
         }
     }
 

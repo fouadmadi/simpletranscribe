@@ -72,13 +72,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void ValidateLanguageForModel(string modelId)
     {
-        var allowed = SupportedLanguages.SupportedCodes(modelId);
-        if (allowed == null) return;
-        if (SelectedLanguage != "auto" && !allowed.Contains(SelectedLanguage))
+        var available = SupportedLanguages.Available(modelId);
+        if (available.Count == 0) return;
+
+        var supportedCodes = available.Select(l => l.Code).ToHashSet(StringComparer.Ordinal);
+        if (!supportedCodes.Contains(SelectedLanguage))
         {
-            SelectedLanguage = "en";
+            var fallback = available.FirstOrDefault(l => l.Code == "en")?.Code ?? available[0].Code;
+            var fallbackName = available.FirstOrDefault(l => l.Code == fallback)?.DisplayName ?? fallback;
+            SelectedLanguage = fallback;
             var modelName = _modelService.GetModel(modelId)?.Name ?? modelId;
-            DeviceSwitchMessage = $"{modelName} doesn't support the selected language — switched to English.";
+            DeviceSwitchMessage = $"{modelName} doesn't support the selected language — switched to {fallbackName}.";
             ClearDeviceSwitchMessageAfterDelay();
         }
         OnPropertyChanged(nameof(AvailableLanguages));

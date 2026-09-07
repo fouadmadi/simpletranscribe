@@ -116,6 +116,9 @@ internal static class WhisperNative
 
     [DllImport(LibName, EntryPoint = "whisper_print_system_info", CallingConvention = CallingConvention.Cdecl)]
     internal static extern nint PrintSystemInfo();
+
+    [DllImport(LibName, EntryPoint = "whisper_is_multilingual", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern int IsMultilingual(nint ctx);
 }
 
 /// <summary>
@@ -133,7 +136,8 @@ internal static class WhisperSamplingStrategy
 /// typed setters for the fields we actually use. This is version-independent because
 /// the native library fills the entire struct including fields we don't know about.
 ///
-/// Field offsets are for whisper.cpp v1.5+ (the most commonly used versions).
+/// Field offsets are pinned to the bundled Whisper.net.Runtime 1.9.0 native runtime
+/// (whisper.cpp 1.8.2). Keep them in sync with runtime upgrades.
 /// The struct starts with: int strategy, int n_threads, int n_max_text_ctx, int offset_ms, int duration_ms,
 /// then bool fields (1 byte each, packed with potential padding).
 /// </summary>
@@ -142,6 +146,7 @@ internal sealed class WhisperParams : IDisposable
     private nint _native;
     private bool _disposed;
     private bool _ownedByNative; // true = free via whisper_free_params, false = Marshal.FreeHGlobal
+    private readonly List<nint> _ownedUtf8Strings = new();
 
     /// <summary>Pointer to the native whisper_full_params memory.</summary>
     internal nint Pointer => _native;
@@ -190,7 +195,7 @@ internal sealed class WhisperParams : IDisposable
         Marshal.WriteInt32(target, Offsets.NMaxTextCtx, 16384);
     }
 
-    // --- Known field offsets for whisper_full_params (whisper.cpp v1.5+) ---
+    // --- Known field offsets for whisper_full_params (whisper.cpp 1.8.2) ---
     // These are stable across minor versions. The struct layout is:
     //   int32 strategy           @ 0
     //   int32 n_threads          @ 4
@@ -213,7 +218,11 @@ internal sealed class WhisperParams : IDisposable
     //   bool  split_on_word      @ 44
     //   (3 bytes padding)
     //   int32 max_tokens         @ 48
-    //   -- fields below may shift between versions; we only set the safe ones above --
+    //   ...
+    //   const char * language    @ 104
+    //   bool  detect_language    @ 112
+    //   bool  suppress_blank     @ 113
+    //   bool  suppress_nst       @ 114
     internal static class Offsets
     {
         public const int Strategy = 0;
@@ -230,6 +239,10 @@ internal sealed class WhisperParams : IDisposable
         public const int PrintRealtime = 26;
         public const int PrintTimestamps = 27;
         public const int TokenTimestamps = 28;
+        public const int Language = 104;
+        public const int DetectLanguage = 112;
+        public const int SuppressBlank = 113;
+        public const int SuppressNonSpeechTokens = 114;
     }
 
     // --- Typed setters for fields we configure ---
@@ -270,33 +283,50 @@ internal sealed class WhisperParams : IDisposable
     }
 
     /// <summary>
-    /// Set language and detect_language fields.
-    /// These fields are deeper in the struct and their exact offset depends on whisper.cpp version.
-    /// We use whisper_full_default_params to set all defaults, then only override the early fields.
-    /// For language, we rely on the defaults (English) unless "auto" is requested.
-    /// 
-    /// NOTE: To safely set language for non-default languages, the caller should use a thin
-    /// C wrapper function, or we accept that non-English may not work without version-specific offsets.
-    /// For the initial release, we support English (the default) and auto-detect.
+    /// Set language and detect_language fields for the bundled whisper.cpp 1.8.2 runtime.
     /// </summary>
     public void ConfigureLanguage(string language)
     {
-        // The default params already have language="en".
-        // For auto-detect, we need to set detect_language=true.
-        // Since the language/detect_language field offsets vary by version,
-        // we leave this as a known limitation documented below.
-        //
-        // TODO: When targeting a specific whisper.cpp version, add exact offsets for:
-        //   - language (const char*) 
-        //   - detect_language (bool)
-        //   - suppress_blank (bool)
-        //   - suppress_non_speech_tokens (bool)
+        ClearOwnedStrings();
+
+        var normalized = string.IsNullOrWhiteSpace(language)
+            ? "en"
+            : language.Trim().ToLowerInvariant();
+
+        if (normalized == "auto")
+        {
+            Marshal.WriteIntPtr(_native, Offsets.Language, nint.Zero);
+            Marshal.WriteByte(_native, Offsets.DetectLanguage, 1);
+        }
+        else
+        {
+            var languagePtr = Marshal.StringToCoTaskMemUTF8(normalized);
+            _ownedUtf8Strings.Add(languagePtr);
+            Marshal.WriteIntPtr(_native, Offsets.Language, languagePtr);
+            Marshal.WriteByte(_native, Offsets.DetectLanguage, 0);
+        }
+
+        // Match whisper.cpp defaults explicitly when using the fallback allocation path.
+        Marshal.WriteByte(_native, Offsets.SuppressBlank, 1);
+        Marshal.WriteByte(_native, Offsets.SuppressNonSpeechTokens, 0);
+    }
+
+    private void ClearOwnedStrings()
+    {
+        foreach (var ptr in _ownedUtf8Strings)
+        {
+            if (ptr != nint.Zero)
+                Marshal.FreeCoTaskMem(ptr);
+        }
+
+        _ownedUtf8Strings.Clear();
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+        ClearOwnedStrings();
         if (_native != nint.Zero)
         {
             if (_ownedByNative)

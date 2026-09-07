@@ -14,6 +14,12 @@ A Windows 11 native speech-to-text transcription app powered by [whisper.cpp](ht
 2. Select **x64** or **arm64** platform
 3. Build and run
 
+## Language support
+
+- `ggml-tiny.en`, `ggml-base.en`, `ggml-small.en`, and `ggml-medium.en` are English-only models.
+- `ggml-large` exposes the full Whisper multilingual language list, including auto-detect.
+- `parakeet-tdt-0.6b-v3` exposes its supported 27-language subset plus auto-detect.
+
 ## Versioning (CI/CD)
 
 The Windows app uses semantic versioning, set in `SimpleTranscribe.csproj` and `app.manifest`.
@@ -44,4 +50,4 @@ SimpleTranscribe/
 
 ## Status
 
-🚧 In development — see [plan.md](../plan.md) for implementation roadmap.
+✅ Feature-complete preview — see [plan.md](../plan.md) for the original Windows port roadmap.

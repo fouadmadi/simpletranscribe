@@ -148,6 +148,22 @@ struct SupportedLanguagesTests {
         }
     }
 
+    @Test("English-only Whisper models expose English only")
+    func englishOnlyWhisperModelsExposeEnglishOnly() {
+        for id in ["ggml-tiny.en", "ggml-base.en", "ggml-small.en", "ggml-medium.en"] {
+            let available = SupportedLanguages.available(for: id)
+            #expect(available.map(\.code) == ["en"], "Unexpected languages for \(id): \(available.map(\.code))")
+        }
+    }
+
+    @Test("Large Whisper keeps the full multilingual list")
+    func largeWhisperKeepsFullLanguageList() {
+        let available = SupportedLanguages.available(for: "ggml-large")
+        #expect(available.count == SupportedLanguages.whisper.count)
+        #expect(available.contains(where: { $0.code == "auto" }))
+        #expect(available.contains(where: { $0.code == "ja" }))
+    }
+
     @Test("available(for:) returns full whisper list for unknown model IDs")
     func availableForUnknownIDReturnsFullList() {
         let full = SupportedLanguages.available(for: "some-unknown-model")

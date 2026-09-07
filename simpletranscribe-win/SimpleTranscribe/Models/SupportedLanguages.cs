@@ -112,6 +112,10 @@ public static class SupportedLanguages
 
     public static HashSet<string>? SupportedCodes(string modelId)
     {
+        var model = KnownModels.Get(modelId);
+        if (model?.ModelType == ModelType.Whisper && model.Language == "en")
+            return new HashSet<string> { "en" };
+
         if (modelId.Contains("parakeet-tdt-0.6b-v2")) return ParakeetV2;
         if (modelId.Contains("parakeet-tdt-0.6b-v3")) return ParakeetV3;
         return null;
@@ -119,6 +123,10 @@ public static class SupportedLanguages
 
     public static List<SupportedLanguage> Available(string modelId)
     {
+        var model = KnownModels.Get(modelId);
+        if (model?.ModelType == ModelType.Whisper && model.Language == "en")
+            return Whisper.Where(l => l.Code == "en").ToList();
+
         var allowed = SupportedCodes(modelId);
         if (allowed == null) return Whisper;
         return Whisper.Where(l => l.Code == "auto" || allowed.Contains(l.Code)).ToList();

@@ -6,13 +6,13 @@ namespace SimpleTranscribe.Tests;
 public class KnownModelsTests
 {
     [Fact]
-    public void All_Contains_FiveModels()
+    public void All_Contains_SevenModels()
     {
-        Assert.Equal(5, KnownModels.All.Count);
+        Assert.Equal(7, KnownModels.All.Count);
     }
 
     [Fact]
-    public void All_Models_Have_NonEmpty_Fields()
+    public void All_Models_Have_Consistent_Metadata()
     {
         foreach (var model in KnownModels.All)
         {
@@ -22,7 +22,15 @@ public class KnownModelsTests
             Assert.True(model.Size > 0);
             Assert.NotNull(model.DownloadUrl);
             Assert.False(string.IsNullOrEmpty(model.Language));
-            Assert.False(string.IsNullOrEmpty(model.Sha256));
+
+            if (model.IsDirectory)
+            {
+                Assert.NotEmpty(model.Files);
+            }
+            else
+            {
+                Assert.False(string.IsNullOrEmpty(model.Sha256));
+            }
         }
     }
 
@@ -71,5 +79,16 @@ public class KnownModelsTests
             KnownModels.Get("ggml-tiny.en")!.Sha256);
         Assert.Equal("a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
             KnownModels.Get("ggml-base.en")!.Sha256);
+    }
+
+    [Fact]
+    public void DirectoryModels_StoreFileLevelHashes()
+    {
+        foreach (var model in KnownModels.All.Where(m => m.IsDirectory))
+        {
+            Assert.NotEmpty(model.Files);
+            Assert.All(model.Files.Where(f => !string.IsNullOrEmpty(f.Sha256)),
+                file => Assert.Equal(64, file.Sha256!.Length));
+        }
     }
 }

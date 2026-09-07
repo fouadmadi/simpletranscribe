@@ -121,6 +121,11 @@ enum SupportedLanguages {
     /// Returns the set of allowed language codes for a given model ID.
     /// Returns nil if the model supports all Whisper languages.
     static func supportedCodes(for modelID: String) -> Set<String>? {
+        if let model = KnownModels.model(withID: modelID),
+           model.modelType == .whisper,
+           model.language == "en" {
+            return ["en"]
+        }
         if modelID.contains("parakeet-tdt-0.6b-v2") { return parakeetV2 }
         if modelID.contains("parakeet-tdt-0.6b-v3") { return parakeetV3 }
         return nil
@@ -128,6 +133,11 @@ enum SupportedLanguages {
 
     /// Filtered language list for a given model ID.
     static func available(for modelID: String) -> [SupportedLanguage] {
+        if let model = KnownModels.model(withID: modelID),
+           model.modelType == .whisper,
+           model.language == "en" {
+            return whisper.filter { $0.code == "en" }
+        }
         guard let allowed = supportedCodes(for: modelID) else { return whisper }
         return whisper.filter { $0.code == "auto" || allowed.contains($0.code) }
     }
